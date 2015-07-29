@@ -78,6 +78,8 @@ AC_CONFIG_FILES([Makefile
                 xlators/cluster/dht/src/Makefile
                 xlators/cluster/ec/Makefile
                 xlators/cluster/ec/src/Makefile
+                xlators/cluster/dht2/Makefile
+                xlators/cluster/dht2/src/Makefile
                 xlators/performance/Makefile
                 xlators/performance/write-behind/Makefile
                 xlators/performance/write-behind/src/Makefile
