@@ -4,7 +4,7 @@
 # i.e. where we are interested in the result of a command,
 # we have to run the command in an if-statement.
 
-branch="master";
+branch="gl40_dht_playground";
 
 set_hooks_commit_msg()
 {
