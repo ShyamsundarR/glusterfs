@@ -953,6 +953,18 @@ glusterd_volume_exclude_options_write (int fd, glusterd_volinfo_t *volinfo)
         if (ret)
                 goto out;
 
+        snprintf (buf, sizeof (buf), "%d", volinfo->dht2_mds_count);
+        ret = gf_store_save_value (fd, GLUSTERD_STORE_KEY_VOL_DHT2_MDS_CNT,
+                                   buf);
+        if (ret)
+                goto out;
+
+        snprintf (buf, sizeof (buf), "%d", volinfo->dht2_data_count);
+        ret = gf_store_save_value (fd, GLUSTERD_STORE_KEY_VOL_DHT2_DATA_CNT,
+                                   buf);
+        if (ret)
+                goto out;
+
         snprintf (buf, sizeof (buf), "%d", volinfo->version);
         ret = gf_store_save_value (fd, GLUSTERD_STORE_KEY_VOL_VERSION, buf);
         if (ret)
@@ -2579,6 +2591,12 @@ glusterd_store_update_volinfo (glusterd_volinfo_t *volinfo)
                 } else if (!strncmp (key, GLUSTERD_STORE_KEY_VOL_REDUNDANCY_CNT,
                                      strlen (GLUSTERD_STORE_KEY_VOL_REDUNDANCY_CNT))) {
                         volinfo->redundancy_count = atoi (value);
+                } else if (!strncmp (key, GLUSTERD_STORE_KEY_VOL_DHT2_MDS_CNT,
+                                     strlen (GLUSTERD_STORE_KEY_VOL_DHT2_MDS_CNT))) {
+                        volinfo->dht2_mds_count = atoi (value);
+                } else if (!strncmp (key, GLUSTERD_STORE_KEY_VOL_DHT2_DATA_CNT,
+                                     strlen (GLUSTERD_STORE_KEY_VOL_DHT2_DATA_CNT))) {
+                        volinfo->dht2_data_count = atoi (value);
                 } else if (!strncmp (key, GLUSTERD_STORE_KEY_VOL_TRANSPORT,
                                      strlen (GLUSTERD_STORE_KEY_VOL_TRANSPORT))) {
                         volinfo->transport_type = atoi (value);

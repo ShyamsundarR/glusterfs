@@ -3092,6 +3092,8 @@ volgen_graph_build_dht_cluster (volgen_graph_t *graph,
         xlator_t                *dht                     = NULL;
         char                    *voltype                 = "cluster/distribute";
         char                    *name_fmt                = NULL;
+        int                      is_dht2                 = 0;
+        char                     str_num[32];
 
         /* NUFA and Switch section */
         if (dict_get_str_boolean (volinfo->dict, "cluster.nufa", 0) &&
@@ -3103,18 +3105,37 @@ volgen_graph_build_dht_cluster (volgen_graph_t *graph,
                 goto out;
         }
 
+        /* Check for DHT2 parameters and change the voltype */
+        /* NOTE: If NUFA or Switch are the voltype, then DHT2 parameters are
+         * ignored */
+        if (volinfo->dht2_mds_count && volinfo->dht2_data_count) {
+                is_dht2 = 1;
+                voltype = "cluster/distribute2";
+        }
+
         /* Check for NUFA volume option, and change the voltype */
-        if (dict_get_str_boolean (volinfo->dict, "cluster.nufa", 0))
+        if (dict_get_str_boolean (volinfo->dict, "cluster.nufa", 0)) {
                 voltype = "cluster/nufa";
+                is_dht2 = 0;
+        }
 
         /* Check for switch volume option, and change the voltype */
-        if (dict_get_str_boolean (volinfo->dict, "cluster.switch", 0))
+        if (dict_get_str_boolean (volinfo->dict, "cluster.switch", 0)) {
                 voltype = "cluster/switch";
+                is_dht2 = 0;
+        }
+
+        gf_log (THIS->name, GF_LOG_INFO,
+                "Volume is %s DHT2", (is_dht2? "of type" : "is not of type"));
 
         if (is_quotad)
                 name_fmt = "%s";
-        else
-                name_fmt = "%s-dht";
+        else {
+                if (is_dht2)
+                        name_fmt = "%s-dht2";
+                else
+                        name_fmt = "%s-dht";
+        }
 
         clusters = volgen_link_bricks_from_list_tail (graph,  volinfo,
                                                 voltype,
@@ -3140,6 +3161,21 @@ volgen_graph_build_dht_cluster (volgen_graph_t *graph,
                 if (ret)
                         goto out;
         }
+
+        /* Set the xlator options for DHT2 to configure mds and data bricks */
+        if (is_dht2) {
+                snprintf (str_num, 32, "%d", volinfo->dht2_mds_count);
+                ret = xlator_set_option (dht, "dht2-mds-count",
+                                         str_num);
+                if (ret)
+                        goto out;
+                snprintf (str_num, 32, "%d", volinfo->dht2_data_count);
+                ret = xlator_set_option (dht, "dht2-data-count",
+                                         str_num);
+                if (ret)
+                        goto out;
+        }
+
         ret = 0;
 out:
         GF_FREE (decommissioned_children);

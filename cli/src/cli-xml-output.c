@@ -2513,6 +2513,8 @@ cli_xml_output_vol_info (cli_local_t *local, dict_t *dict)
         int                     replica_count = 0;
         int                     disperse_count = 0;
         int                     redundancy_count = 0;
+        int                     dht2_mds_count = 0;
+        int                     dht2_data_count = 0;
         int                     transport = 0;
         char                    *brick = NULL;
         char                    key[1024] = {0,};
@@ -2624,6 +2626,26 @@ cli_xml_output_vol_info (cli_local_t *local, dict_t *dict)
                 ret = xmlTextWriterWriteFormatElement (local->writer,
                                                        (xmlChar *)"redundancyCount",
                                                        "%d", redundancy_count);
+                XML_RET_CHECK_AND_GOTO (ret, out);
+
+                memset (key, 0, sizeof (key));
+                snprintf (key, sizeof (key), "volume%d.dht2_mds_count", i);
+                ret = dict_get_int32 (dict, key, &dht2_mds_count);
+                if (ret)
+                        goto out;
+                ret = xmlTextWriterWriteFormatElement (local->writer,
+                                        (xmlChar *)"DHT2MdsCount",
+                                        "%d", dht2_mds_count);
+                XML_RET_CHECK_AND_GOTO (ret, out);
+
+                memset (key, 0, sizeof (key));
+                snprintf (key, sizeof (key), "volume%d.dht2_data_count", i);
+                ret = dict_get_int32 (dict, key, &dht2_data_count);
+                if (ret)
+                        goto out;
+                ret = xmlTextWriterWriteFormatElement (local->writer,
+                                        (xmlChar *)"DHT2DataCount",
+                                        "%d", dht2_data_count);
                 XML_RET_CHECK_AND_GOTO (ret, out);
 
                 memset (key, 0, sizeof (key));

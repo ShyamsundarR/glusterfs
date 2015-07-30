@@ -27,6 +27,7 @@
  * 3.7.0                - 30700
  * 3.7.1                - 30701
  * 3.7.2                - 30702
+ * 4.0.0                - 40000
  *
  * Starting with Gluster v3.6, the op-version will be multi-digit integer values
  * based on the Glusterfs version, instead of a simply incrementing integer
@@ -37,11 +38,10 @@
  */
 #define GD_OP_VERSION_MIN  1 /* MIN is the fresh start op-version, mostly
                                 should not change */
-#define GD_OP_VERSION_MAX  GD_OP_VERSION_3_7_3 /* MAX VERSION is the maximum
-                                                  count in VME table, should
-                                                  keep changing with
-                                                  introduction of newer
-                                                  versions */
+
+#define GD_OP_VERSION_MAX  40000 /* MAX VERSION is the maximum count in VME
+                                    table, should keep changing with
+                                    introduction of newer versions */
 
 #define GD_OP_VERSION_3_6_0    30600 /* Op-Version for GlusterFS 3.6.0 */
 
@@ -52,6 +52,8 @@
 #define GD_OP_VERSION_3_7_2    30702 /* Op-version for GlusterFS 3.7.2 */
 
 #define GD_OP_VERSION_3_7_3    30703 /* Op-version for GlusterFS 3.7.3 */
+
+#define GD_OP_VERSION_4_0_0    40000 /* Op-version for GlusterFS 4.0.0 */
 
 #define GD_OP_VER_PERSISTENT_AFR_XATTRS GD_OP_VERSION_3_6_0
 

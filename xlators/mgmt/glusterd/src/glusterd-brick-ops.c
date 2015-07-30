@@ -215,6 +215,21 @@ out:
 }
 
 static int
+gd_addbr_validate_dht2 (glusterd_volinfo_t *volinfo, char *err_str, int err_len)
+{
+        int ret = -1;
+
+        if (volinfo->dht2_mds_count || volinfo->dht2_data_count) {
+                snprintf (err_str, err_len, "Volume %s uses DHT2 and does not"
+                          " yet support addition of bricks", volinfo->volname);
+                gf_log(THIS->name, GF_LOG_ERROR, "%s", err_str);
+        } else
+                ret = 0;
+
+        return ret;
+}
+
+static int
 gd_addbr_validate_replica_count (glusterd_volinfo_t *volinfo, int replica_count,
                                  int total_bricks, int *type, char *err_str,
                                  int err_len)
@@ -503,6 +518,12 @@ __glusterd_handle_add_brick (rpcsvc_request_t *req)
                         GD_MSG_VOLINFO_GET_FAIL, "%s", err_str);
                 goto out;
 
+        }
+
+        ret = gd_addbr_validate_dht2 (volinfo, err_str, sizeof (err_str));
+        if (ret == -1) {
+                gf_log (this->name, GF_LOG_ERROR, "%s", err_str);
+                goto out;
         }
 
         total_bricks = volinfo->brick_count + brick_count;
@@ -978,6 +999,16 @@ __glusterd_handle_remove_brick (rpcsvc_request_t *req)
                         ret = -1;
                         goto out;
                 }
+        }
+
+        /* For now disallow removing bricks from DHT2 */
+        if (volinfo->dht2_mds_count || volinfo->dht2_data_count) {
+                snprintf (err_str, sizeof (err_str),
+                          "Removing bricks from DHT2 configuration "
+                          "is not allowed yet!");
+                gf_log (this->name, GF_LOG_ERROR, "%s", err_str);
+                ret = -1;
+                goto out;
         }
 
         brick_list = GF_MALLOC (120000 * sizeof(*brick_list),gf_common_mt_char);

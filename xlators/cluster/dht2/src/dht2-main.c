@@ -22,12 +22,6 @@
 int32_t
 dht2_init (xlator_t *this)
 {
-        if (!this->children || this->children->next) {
-                gf_log (this->name, GF_LOG_ERROR,
-                        "not configured with exactly one child. exiting");
-                return -1;
-        }
-
         if (!this->parents) {
                 gf_log (this->name, GF_LOG_WARNING,
                         "dangling volume. check volfile ");

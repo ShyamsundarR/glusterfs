@@ -2156,6 +2156,58 @@ glusterd_op_create_volume (dict_t *dict, char **op_errstr)
         if (volinfo->dist_leaf_count > 1)
                 volinfo->sub_count = volinfo->dist_leaf_count;
 
+        /* dht2_mds_count is the count of bricks nodes to use as the meta-data
+           subvolumes for a given DHT2 volume */
+        ret = dict_get_int32 (dict, "mds-count",
+                              &volinfo->dht2_mds_count);
+        if (!ret) {
+                gf_log (this->name, GF_LOG_INFO, "Got MDS count (%d) for"
+                        " volume %s", volinfo->dht2_mds_count, volname);
+                if (priv->op_version < GD_OP_VERSION_4_0_0) {
+                        gf_log (this->name, GF_LOG_ERROR, "DHT2 volume "
+                                "needs op-version %d or higher",
+                                GD_OP_VERSION_4_0_0);
+                        ret = -1;
+                        goto out;
+                }
+        } else {
+                gf_log (this->name, GF_LOG_INFO, "MDS not configured for"
+                        " volume %s", volname);
+                volinfo->dht2_mds_count = 0;
+        }
+
+        /* dht2_data_count is the count of bricks nodes to use as the data
+           subvolumes for a given DHT2 volume */
+        ret = dict_get_int32 (dict, "data-count",
+                              &volinfo->dht2_data_count);
+        if (!ret) {
+                gf_log (this->name, GF_LOG_INFO, "Got Data count (%d) for"
+                        " volume %s", volinfo->dht2_data_count, volname);
+                if (priv->op_version < GD_OP_VERSION_4_0_0) {
+                        gf_log (this->name, GF_LOG_ERROR, "DHT2 volume "
+                                "needs op-version %d or higher",
+                                GD_OP_VERSION_4_0_0);
+                        ret = -1;
+                        goto out;
+                }
+        } else {
+                gf_log (this->name, GF_LOG_INFO, "Data not configured for"
+                        " volume %s", volname);
+                volinfo->dht2_data_count = 0;
+        }
+
+        /* either both need to have a value or none, to default to DHT2 or
+           DHT */
+        if (!((volinfo->dht2_mds_count && volinfo->dht2_data_count) ||
+            (!volinfo->dht2_mds_count && !volinfo->dht2_data_count))) {
+                gf_log (this->name, GF_LOG_INFO, "Only one of MDS count (%d)"
+                        " or Data count (%d) specified for volume %s",
+                        volinfo->dht2_mds_count,
+                        volinfo->dht2_data_count, volname);
+                ret = -1;
+                goto out;
+        }
+
         ret = dict_get_str (dict, "transport", &trans_type);
         if (ret) {
                 gf_msg (this->name, GF_LOG_ERROR, 0,

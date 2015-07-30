@@ -2569,6 +2569,7 @@ struct cli_cmd volume_cmds[] = {
           "list information of all volumes"},
 
         { "volume create <NEW-VOLNAME> [stripe <COUNT>] "
+          "[mds <count> [data <count>]] "
           "[replica <COUNT> [arbiter <COUNT>]] "
           "[disperse [<COUNT>]] [disperse-data <COUNT>] [redundancy <COUNT>] "
           "[transport <tcp|rdma|tcp,rdma>] <NEW-BRICK>"
