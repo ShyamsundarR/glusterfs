@@ -654,7 +654,7 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
                                 ret = -1;
                                 goto out;
                         }
-                        ret = dict_set_int32 (dict, "data-count", mds_count);
+                        ret = dict_set_int32 (dict, "data-count", data_count);
                         if (ret)
                                 goto out;
 

@@ -20,6 +20,97 @@
 #include "statedump.h"
 #include "dht2.h"
 
+int
+dht2_print_layouts (xlator_t *this, dht2_conf_t *conf)
+{
+        int i;
+
+        gf_msg (this->name, GF_LOG_INFO, 0, 0, "MDS layout:");
+        for (i = 0; i < conf->d2cnf_mds_count; i ++){
+                gf_msg (this->name, GF_LOG_INFO, 0, 0, "\t%s - Start - %x :"
+                        " Stop - %x",
+                        conf->d2cnf_mds_layout[i].d2slay_subvol->name,
+                        conf->d2cnf_mds_layout[i].d2slay_start,
+                        conf->d2cnf_mds_layout[i].d2slay_stop);
+        }
+
+        gf_msg (this->name, GF_LOG_INFO, 0, 0, "Data layout:");
+        for (i = 0; i < conf->d2cnf_data_count; i ++){
+                gf_msg (this->name, GF_LOG_INFO, 0, 0, "\t%s - Start - %x :"
+                        " Stop - %x",
+                        conf->d2cnf_data_layout[i].d2slay_subvol->name,
+                        conf->d2cnf_data_layout[i].d2slay_start,
+                        conf->d2cnf_data_layout[i].d2slay_stop);
+        }
+
+        return 0;
+}
+
+int
+dht2_create_static_layout (xlator_t *this, dht2_conf_t *conf)
+{
+        int              ret = -1;
+        int              i;
+        xlator_list_t   *subvol_list;
+
+        /* Wat we do here
+         * - We allocate 2 arrays to store the data and mds layout
+         * - layout chunk per member is a simple division of the entire range
+         *   by the subvols for the layout
+         * - each element in the array is sorted by its layout start
+         * - each element contains the subvol that represents its range
+         * We do this, so as to get the array index a hash belongs to, by
+         * simple division of the hash with the layout chunk */
+
+        conf->d2cnf_mds_layout = GF_CALLOC (conf->d2cnf_mds_count,
+                                            sizeof(dht2_static_layout_t),
+                                            gf_dht2_mt_dht2_static_layout_t);
+        if (!conf->d2cnf_mds_layout)
+                goto out;
+
+        conf->d2cnf_data_layout = GF_CALLOC (conf->d2cnf_data_count,
+                                             sizeof(dht2_static_layout_t),
+                                             gf_dht2_mt_dht2_static_layout_t);
+        if (!conf->d2cnf_data_layout)
+                goto out;
+
+        conf->d2cnf_mds_chunk =
+                        DHT2_LAYOUT_MAX_VALUE / conf->d2cnf_mds_count;
+        conf->d2cnf_data_chunk =
+                        DHT2_LAYOUT_MAX_VALUE / conf->d2cnf_data_count;
+
+        subvol_list = this->children;
+        for (i = 0; i < conf->d2cnf_mds_count; i++) {
+                conf->d2cnf_mds_layout[i].d2slay_start =
+                                        i * conf->d2cnf_mds_chunk;
+                conf->d2cnf_mds_layout[i].d2slay_stop =
+                                        conf->d2cnf_mds_layout[i].d2slay_start
+                                        + conf->d2cnf_mds_chunk - 1;
+                conf->d2cnf_mds_layout[i].d2slay_subvol = subvol_list->xlator;
+
+                subvol_list = subvol_list->next;
+        }
+        conf->d2cnf_mds_layout[conf->d2cnf_mds_count - 1].d2slay_stop =
+                                                DHT2_LAYOUT_MAX_VALUE;
+
+        for (i = 0; i < conf->d2cnf_data_count; i++) {
+                conf->d2cnf_data_layout[i].d2slay_start =
+                                        i * conf->d2cnf_data_chunk;
+                conf->d2cnf_data_layout[i].d2slay_stop =
+                                        conf->d2cnf_data_layout[i].d2slay_start
+                                        + conf->d2cnf_data_chunk - 1;
+                conf->d2cnf_data_layout[i].d2slay_subvol = subvol_list->xlator;
+
+                subvol_list = subvol_list->next;
+        }
+        conf->d2cnf_mds_layout[conf->d2cnf_data_count - 1].d2slay_stop =
+                                                DHT2_LAYOUT_MAX_VALUE;
+
+        dht2_print_layouts (this, conf);
+        ret = 0;
+out:
+        return ret;
+}
 int32_t
 mem_acct_init (xlator_t *this)
 {
@@ -70,6 +161,13 @@ dht2_init (xlator_t *this)
                         "mds and data count specified"
                         " (data - %d, mds - %d)",
                         conf->d2cnf_data_count, conf->d2cnf_mds_count);
+
+        ret = dht2_create_static_layout (this, conf);
+        if (ret) {
+                gf_msg (this->name, GF_LOG_CRITICAL, errno, 0,
+                        "Failed to initialize layouts for distribution");
+                goto out;
+        }
 
         this->private = conf;
 

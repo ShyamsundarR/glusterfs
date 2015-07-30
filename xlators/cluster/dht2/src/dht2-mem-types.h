@@ -19,6 +19,7 @@
 
 enum gf_dht2_mem_types_ {
         gf_dht2_mt_dht2_conf_t = gf_common_mt_end + 1,
+        gf_dht2_mt_dht2_static_layout_t,
         gf_dht2_mt_end
 };
 
