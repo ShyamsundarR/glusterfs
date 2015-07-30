@@ -737,6 +737,7 @@ gf_cli_get_volume_cbk (struct rpc_req *req, struct iovec *iov,
         int32_t                    replica_count        = 0;
         int32_t                    disperse_count       = 0;
         int32_t                    redundancy_count     = 0;
+        int32_t                    dht2_mds_count       = 0;
         int32_t                    vol_type             = 0;
         int32_t                    transport            = 0;
         char                      *volume_id_str        = NULL;
@@ -900,6 +901,11 @@ xml_output:
                 if (ret)
                         goto out;
 
+                snprintf (key, 256, "volume%d.dht2_mds_count", i);
+                ret = dict_get_int32 (dict, key, &dht2_mds_count);
+                if (ret)
+                        goto out;
+
                 snprintf (key, 256, "volume%d.transport", i);
                 ret = dict_get_int32 (dict, key, &transport);
                 if (ret)
@@ -958,6 +964,9 @@ next:
                 gf_cli_print_number_of_bricks (type, brick_count,
                                 dist_count, stripe_count, replica_count,
                                 disperse_count, redundancy_count);
+
+                cli_out ("Distribution-type: %s",
+                         ((dht2_mds_count) ? "dht2" : "dht"));
 
                 cli_out ("Transport-type: %s",
                          ((transport == 0)?"tcp":

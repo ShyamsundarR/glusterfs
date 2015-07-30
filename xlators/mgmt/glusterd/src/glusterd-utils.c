@@ -549,6 +549,8 @@ glusterd_volinfo_dup (glusterd_volinfo_t *volinfo,
         new_volinfo->dist_leaf_count = volinfo->dist_leaf_count;
         new_volinfo->sub_count = volinfo->sub_count;
         new_volinfo->subvol_count = volinfo->subvol_count;
+        new_volinfo->dht2_mds_count = volinfo->dht2_mds_count;
+        new_volinfo->dht2_data_count = volinfo->dht2_data_count;
         new_volinfo->transport_type = volinfo->transport_type;
         new_volinfo->brick_count = volinfo->brick_count;
         new_volinfo->tier_info = volinfo->tier_info;
@@ -2171,6 +2173,18 @@ glusterd_add_volume_to_dict (glusterd_volinfo_t *volinfo,
                 goto out;
 
         memset (key, 0, sizeof (key));
+        snprintf (key, sizeof (key), "%s%d.dht2_mds_count", prefix, count);
+        ret = dict_set_int32 (dict, key, volinfo->dht2_mds_count);
+        if (ret)
+                goto out;
+
+        memset (key, 0, sizeof (key));
+        snprintf (key, sizeof (key), "%s%d.dht2_data_count", prefix, count);
+        ret = dict_set_int32 (dict, key, volinfo->dht2_data_count);
+        if (ret)
+                goto out;
+
+        memset (key, 0, sizeof (key));
         snprintf (key, sizeof (key), "%s%d.ckusm", prefix, count);
         ret = dict_set_int64 (dict, key, volinfo->cksum);
         if (ret)
@@ -3254,6 +3268,24 @@ glusterd_import_volinfo (dict_t *peer_data, int count,
         if (ret)
                 gf_msg (THIS->name, GF_LOG_INFO, 0,
                         GD_MSG_DICT_GET_FAILED,
+                        "peer is possibly old version");
+
+        /* not having a 'dht2_mds_count' key is not a error
+           (as peer may be of old version) */
+        memset (key, 0, sizeof (key));
+        snprintf (key, sizeof (key), "%s%d.dht2_mds_count", prefix, count);
+        ret = dict_get_int32 (peer_data, key, &new_volinfo->dht2_mds_count);
+        if (ret)
+                gf_log (THIS->name, GF_LOG_INFO,
+                        "peer is possibly old version");
+
+        /* not having a 'dht2_data_count' key is not a error
+           (as peer may be of old version) */
+        memset (key, 0, sizeof (key));
+        snprintf (key, sizeof (key), "%s%d.dht2_data_count", prefix, count);
+        ret = dict_get_int32 (peer_data, key, &new_volinfo->dht2_data_count);
+        if (ret)
+                gf_log (THIS->name, GF_LOG_INFO,
                         "peer is possibly old version");
 
         /* not having a 'hot_brick_count' key is not a error

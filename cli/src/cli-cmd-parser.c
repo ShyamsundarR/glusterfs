@@ -440,7 +440,8 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
         char    *bricks = NULL;
         int32_t brick_count = 0;
         char    *opwords[] = { "replica", "stripe", "transport", "disperse",
-                               "redundancy", "disperse-data", "arbiter", NULL };
+                               "redundancy", "disperse-data", "arbiter", "mds",
+                               "data", NULL };
 
         char    *w = NULL;
         char    *ptr = NULL;
@@ -451,6 +452,8 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
         int32_t  disperse_count = -1;
         int32_t  redundancy_count = -1;
         int32_t  disperse_data_count = -1;
+        int32_t  mds_count = 0;
+        int32_t  data_count = 0;
         gf_boolean_t is_force = _gf_false;
         int wc = wordcount;
 
@@ -624,6 +627,38 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
                                 goto out;
                         index += ret;
                         type = GF_CLUSTER_TYPE_DISPERSE;
+                } else if ((strcmp (w, "mds")) == 0) {
+                        if (wordcount < (index + 2)) {
+                                ret = -1;
+                                goto out;
+                        }
+                        mds_count = strtol (words[index+1], NULL, 0);
+                        if (mds_count < 1) {
+                                cli_err ("mds count should be greater than 0");
+                                ret = -1;
+                                goto out;
+                        }
+                        ret = dict_set_int32 (dict, "mds-count", mds_count);
+                        if (ret)
+                                goto out;
+
+                        index += 2;
+                } else if ((strcmp (w, "data")) == 0) {
+                        if (wordcount < (index + 2)) {
+                                ret = -1;
+                                goto out;
+                        }
+                        data_count = strtol (words[index+1], NULL, 0);
+                        if (data_count < 1) {
+                                cli_err ("data count should be greater than 0");
+                                ret = -1;
+                                goto out;
+                        }
+                        ret = dict_set_int32 (dict, "data-count", data_count);
+                        if (ret)
+                                goto out;
+
+                        index += 2;
                 } else {
                         GF_ASSERT (!"opword mismatch");
                         ret = -1;
@@ -663,6 +698,14 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
                 goto out;
         }
 
+        if (!((mds_count && data_count) ||
+            (!mds_count && !data_count))) {
+                cli_err ("Either both mds and data counts, or none, need to"
+                         " be specified");
+                ret = -1;
+                goto out;
+        }
+
         if (type == GF_CLUSTER_TYPE_DISPERSE) {
                 ret = cli_cmd_create_disperse_check (state, &disperse_count,
                                                      &redundancy_count,
@@ -695,6 +738,14 @@ cli_cmd_volume_create_parse (struct cli_state *state, const char **words,
                         cli_err ("number of bricks given doesn't match "
                                  "required count");
 
+                ret = -1;
+                goto out;
+        }
+
+        if (mds_count && ((brick_count / sub_count) !=
+            (mds_count + data_count))) {
+                cli_err ("Number of subvolumes to distribute2 does not total"
+                         " mentioned mds and data counts");
                 ret = -1;
                 goto out;
         }

@@ -41,6 +41,8 @@ typedef enum glusterd_store_ver_ac_{
 #define GLUSTERD_STORE_KEY_VOL_REPLICA_CNT      "replica_count"
 #define GLUSTERD_STORE_KEY_VOL_DISPERSE_CNT     "disperse_count"
 #define GLUSTERD_STORE_KEY_VOL_REDUNDANCY_CNT   "redundancy_count"
+#define GLUSTERD_STORE_KEY_VOL_DHT2_MDS_CNT     "dht2_mds_count"
+#define GLUSTERD_STORE_KEY_VOL_DHT2_DATA_CNT    "dht2_data_count"
 #define GLUSTERD_STORE_KEY_VOL_BRICK            "brick"
 #define GLUSTERD_STORE_KEY_VOL_VERSION          "version"
 #define GLUSTERD_STORE_KEY_VOL_TRANSPORT        "transport-type"

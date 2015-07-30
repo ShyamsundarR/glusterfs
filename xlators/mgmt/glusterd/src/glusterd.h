@@ -359,6 +359,13 @@ struct glusterd_volinfo_ {
                                                  distribute volume */
         int                       dist_leaf_count; /* Number of bricks in one
                                                     distribute subvolume */
+        int                       dht2_mds_count; /* # bricks to use for name
+                                                   * servers, i.e namespace
+                                                   * representation in DHT2 */
+        int                       dht2_data_count; /* # bricks to use as data
+                                                    * servers, i.e gfid
+                                                    * namespace for files and
+                                                    * its file data */
         int                       port;
         gf_store_handle_t        *shandle;
         gf_store_handle_t        *node_state_shandle;
