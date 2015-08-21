@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2006-2012 Red Hat, Inc. <http://www.redhat.com>
+   Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com>
    This file is part of GlusterFS.
 
    This file is licensed to you under your choice of the GNU Lesser
@@ -9,18 +9,6 @@
 */
 #define __XOPEN_SOURCE 500
 
-#include <openssl/md5.h>
-#include <stdint.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <errno.h>
-#include <libgen.h>
-#include <pthread.h>
-#include <ftw.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <sys/uio.h>
-
 #ifndef GF_BSD_HOST_OS
 #include <alloca.h>
 #endif /* GF_BSD_HOST_OS */
@@ -29,28 +17,6 @@
 #include <fcntl.h>
 #endif /* HAVE_LINKAT */
 
-#include "glusterfs.h"
-#include "checksum.h"
-#include "dict.h"
-#include "logging.h"
-#include "posix.h"
-#include "xlator.h"
-#include "defaults.h"
-#include "common-utils.h"
-#include "compat-errno.h"
-#include "compat.h"
-#include "byte-order.h"
-#include "syscall.h"
-#include "statedump.h"
-#include "locking.h"
-#include "timer.h"
-#include "glusterfs3-xdr.h"
-#include "hashfn.h"
-#include "posix-aio.h"
-#include "glusterfs-acl.h"
-#include "posix-messages.h"
-
-extern char *marker_xattrs[];
 #define ALIGN_SIZE 4096
 
 #undef HAVE_SET_FSID
@@ -74,7 +40,8 @@ extern char *marker_xattrs[];
 #define SET_FS_ID(uid, gid)
 #define SET_TO_OLD_FS_ID()
 
-#endif
+#endif /* HAVE_SET_FSID */
+
 int
 posix_forget (xlator_t *this, inode_t *inode)
 {
@@ -93,115 +60,51 @@ posix_lookup (call_frame_t *frame, xlator_t *this,
 {
         struct iatt buf                = {0, };
         int32_t     op_ret             = -1;
-        int32_t     entry_ret          = 0;
         int32_t     op_errno           = 0;
-        dict_t *    xattr              = NULL;
-        char *      real_path          = NULL;
-        char *      par_path           = NULL;
+        dict_t     *xattr              = NULL;
+        char       *ondisk_path        = NULL;
+        char       *par_path           = NULL;
+        int         ret                = 0;
         struct iatt postparent         = {0,};
-        int32_t     gfidless           = 0;
-        char        *pgfid_xattr_key   = NULL;
-        int32_t     nlink_samepgfid    = 0;
-        struct  posix_private *priv    = NULL;
 
         VALIDATE_OR_GOTO (frame, out);
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        priv = this->private;
-
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get any gfid on it */
-        if (__is_root_gfid (loc->pargfid) && loc->name
-            && (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_LOOKUP_NOT_PERMITTED, "Lookup issued on %s,"
-                        " which is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
-        }
-
-        op_ret = dict_get_int32 (xdata, GF_GFIDLESS_LOOKUP, &gfidless);
-        op_ret = -1;
         if (gf_uuid_is_null (loc->pargfid) || (loc->name == NULL)) {
-                /* nameless lookup */
-                MAKE_INODE_HANDLE (real_path, this, loc, &buf);
+                POSIX_INODE_LOOKUP (this, loc->gfid, &buf, ondisk_path,
+                                    op_ret, op_errno);
+
+                /* xattrs are available only with the inode */
+                if (xdata && (op_ret == 0)) {
+                        xattr = posix_xattr_fill (this, ondisk_path, loc, NULL,
+                                                  -1, xdata, &buf);
+                }
         } else {
-                MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, &buf);
+                POSIX_NAME_LOOKUP (this, loc->pargfid, loc->name, &buf,
+                                   par_path, op_ret, op_errno);
 
-                if (gf_uuid_is_null (loc->inode->gfid)) {
-                        posix_gfid_heal (this, real_path, loc, xdata);
-                        MAKE_ENTRY_HANDLE (real_path, par_path, this,
-                                           loc, &buf);
-                }
-        }
-
-        op_errno = errno;
-
-        if (op_ret == -1) {
-                if (op_errno != ENOENT) {
-                        gf_msg (this->name, GF_LOG_WARNING, op_errno,
-                                P_MSG_LSTAT_FAILED,
-                                "lstat on %s failed",
-                                real_path ? real_path : "null");
-                }
-
-                entry_ret = -1;
-                goto parent;
-        }
-
-        if (xdata && (op_ret == 0)) {
-                xattr = posix_xattr_fill (this, real_path, loc, NULL, -1, xdata,
-                                          &buf);
-        }
-
-        if (priv->update_pgfid_nlinks) {
-                if (!gf_uuid_is_null (loc->pargfid) && !IA_ISDIR (buf.ia_type)) {
-                        MAKE_PGFID_XATTR_KEY (pgfid_xattr_key,
-                                              PGFID_XATTR_KEY_PREFIX,
-                                              loc->pargfid);
-
-                        LOCK (&loc->inode->lock);
-                        {
-                                SET_PGFID_XATTR_IF_ABSENT (real_path,
-                                                           pgfid_xattr_key,
-                                                           nlink_samepgfid,
-                                                           XATTR_CREATE, op_ret,
-                                                           this, unlock);
+                if (par_path) {
+                        ret = posix_pstat (this, loc->pargfid,
+                                           par_path, &postparent);
+                        if (ret == -1) {
+                                if (op_errno == ENOENT)
+                                        /* parent missing is GFID missing, i.e
+                                         * STALE inode */
+                                        op_errno = ESTALE;
                         }
-unlock:
-                        UNLOCK (&loc->inode->lock);
                 }
+
+                /* TBD: process EREMOTE error and stash the
+                 * GFID into xdata as required */
         }
 
-parent:
-        if (par_path) {
-                op_ret = posix_pstat (this, loc->pargfid, par_path, &postparent);
-                if (op_ret == -1) {
-                        op_errno = errno;
-                        gf_msg (this->name, GF_LOG_ERROR, errno,
-                                P_MSG_LSTAT_FAILED, "post-operation lstat on"
-                                " parent %s failed", par_path);
-			if (op_errno == ENOENT)
-				/* If parent directory is missing in a lookup,
-				   errno should be ESTALE (bad handle) and not
-				   ENOENT (missing entry)
-				*/
-				op_errno = ESTALE;
-                        goto out;
-                }
-        }
-
-        op_ret = entry_ret;
 out:
-        if (!op_ret && !gfidless && gf_uuid_is_null (buf.ia_gfid)) {
-                gf_msg (this->name, GF_LOG_ERROR, ENODATA, P_MSG_NULL_GFID,
-                        "buf->ia_gfid is null for "
-                        "%s", (real_path) ? real_path: "");
+        if (!op_ret && gf_uuid_is_null (buf.ia_gfid)) {
                 op_ret = -1;
                 op_errno = ENODATA;
         }
+
         STACK_UNWIND_STRICT (lookup, frame, op_ret, op_errno,
                              (loc)?loc->inode:NULL, &buf, xattr, &postparent);
 
@@ -218,7 +121,6 @@ posix_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         struct iatt           buf       = {0,};
         int32_t               op_ret    = -1;
         int32_t               op_errno  = 0;
-        struct posix_private *priv      = NULL;
         char                 *real_path = NULL;
         dict_t               *xattr_rsp = NULL;
 
@@ -228,15 +130,10 @@ posix_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        priv = this->private;
-        VALIDATE_OR_GOTO (priv, out);
-
         SET_FS_ID (frame->root->uid, frame->root->gid);
 
-        MAKE_INODE_HANDLE (real_path, this, loc, &buf);
-
+        POSIX_INODE_LOOKUP (this, loc->gfid, &buf, real_path, op_ret, op_errno);
         if (op_ret == -1) {
-                op_errno = errno;
                 if (op_errno == ENOENT) {
                         gf_msg_debug(this->name, 0, "lstat on %s failed: %s",
                                      real_path ? real_path : "<null>",
@@ -379,8 +276,9 @@ posix_setattr (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (loc, out);
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
-        MAKE_INODE_HANDLE (real_path, this, loc, &statpre);
 
+        POSIX_INODE_LOOKUP (this, loc->gfid, &statpre, real_path,
+                            op_ret, op_errno);
         if (op_ret == -1) {
                 op_errno = errno;
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
@@ -434,6 +332,7 @@ posix_setattr (call_frame_t *frame, xlator_t *this,
                 }
         }
 
+        /* TBD: Need to change a little to handle gfid filling */
         op_ret = posix_pstat (this, loc->gfid, real_path, &statpost);
         if (op_ret == -1) {
                 op_errno = errno;
@@ -925,7 +824,7 @@ posix_opendir (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (fd, out);
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
-        MAKE_INODE_HANDLE (real_path, this, loc, NULL);
+        MAKE_HANDLE_PATH (real_path, this, loc->gfid, NULL)
         if (!real_path) {
                 op_errno = ESTALE;
                 goto out;
@@ -1043,7 +942,8 @@ posix_readlink (call_frame_t *frame, xlator_t *this,
 
         dest = alloca (size + 1);
 
-        MAKE_INODE_HANDLE (real_path, this, loc, &stbuf);
+        POSIX_INODE_LOOKUP (this, loc->gfid, &stbuf, real_path,
+                            op_ret, op_errno);
         if (op_ret == -1) {
                 op_errno = errno;
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
@@ -1068,7 +968,6 @@ out:
 
         return 0;
 }
-
 
 int
 posix_mknod (call_frame_t *frame, xlator_t *this,
@@ -1283,55 +1182,20 @@ posix_mkdir (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get created from a user request */
-        if (__is_root_gfid (loc->pargfid) &&
-            (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_MKDIR_NOT_PERMITTED, "mkdir issued on %s, which"
-                        "is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
-        }
-
         priv = this->private;
         VALIDATE_OR_GOTO (priv, out);
 
-        MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, NULL);
-        if (!real_path || !par_path) {
-                op_ret = -1;
-                op_errno = ESTALE;
-                goto out;
-        }
-
         gid = frame->root->gid;
-
-        op_ret = posix_pstat (this, NULL, real_path, &stbuf);
 
         SET_FS_ID (frame->root->uid, gid);
 
+        /* this denotes that the mkdir is to create the name entry
+         * if absent, it would mean creation of gfid directory (or dinode) */
+        op_ret = dict_get_ptr (xdata, "posix-name-operation", &uuid_req);
+
         op_ret = dict_get_ptr (xdata, "gfid-req", &uuid_req);
         if (uuid_req && !gf_uuid_is_null (uuid_req)) {
-                op_ret = posix_istat (this, uuid_req, NULL, &stbuf);
-                if ((op_ret == 0) && IA_ISDIR (stbuf.ia_type)) {
-                        size = posix_handle_path (this, uuid_req, NULL, NULL,
-                                                  0);
-                        if (size > 0)
-                                gfid_path = alloca (size);
 
-                        if (gfid_path)
-                                posix_handle_path (this, uuid_req, NULL,
-                                                   gfid_path, size);
-
-                        gf_msg (this->name, GF_LOG_WARNING, 0,
-                                P_MSG_DIR_OF_SAME_ID, "mkdir (%s): gfid (%s) is"
-                                "already associated with directory (%s). Hence,"
-                                "both directories will share same gfid and this"
-                                "can lead to inconsistencies.", loc->path,
-                                uuid_utoa (uuid_req), gfid_path ? gfid_path
-                                : "<NULL>");
-                }
         }
 
         op_ret = posix_pstat (this, loc->pargfid, par_path, &preparent);
@@ -1367,7 +1231,7 @@ posix_mkdir (call_frame_t *frame, xlator_t *this,
                 goto out;
         }
 #endif
-        op_ret = posix_acl_xattr_set (this, real_path, xdata);
+        op_ret = posix_acl_xattr_set     (this, real_path, xdata);
         if (op_ret) {
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_ACL_FAILED,
                         "setting ACLs on %s failed ", real_path);
@@ -1696,19 +1560,9 @@ posix_rmdir (call_frame_t *frame, xlator_t *this,
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
 
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get deleted from inside process */
-        if (__is_root_gfid (loc->pargfid) &&
-            (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_RMDIR_NOT_PERMITTED, "rmdir issued on %s, which"
-                        "is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
-        }
-
         priv = this->private;
+
+        op_ret = dict_get_ptr (xdata, "posix-name-operation", &uuid_req);
 
         MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, &stbuf);
         if (!real_path || !par_path) {

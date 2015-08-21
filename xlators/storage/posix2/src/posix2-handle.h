@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011-2012 Red Hat, Inc. <http://www.redhat.com>
+   Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com>
    This file is part of GlusterFS.
 
    This file is licensed to you under your choice of the GNU Lesser
@@ -21,10 +21,15 @@
 #define _XOPEN_PATH_MAX 1024
 #endif
 
-#define TRASH_DIR "landfill"
-
 #define UUID0_STR "00000000-0000-0000-0000-000000000000"
 #define SLEN(str) (sizeof(str) - 1)
+
+/* I refuse to strlen the following each time, hence the magic
+ * num converts as follows,
+ * 1 + 3 + 3 + 36 + 1 = POSIX_HANDLE_LENGTH
+ * SLEN("/") + SLEN("00/") + SLEN("00/") + SLEN(UUID0_STR) + 1
+ * (last +1 is the NULL terminator) */
+#define POSIX_HANDLE_LENGTH 44
 
 #define HANDLE_ABSPATH_LEN(this) (POSIX_BASE_PATH_LEN(this) + \
                                   SLEN("/" GF_HIDDEN_PATH "/00/00/" \
@@ -33,6 +38,29 @@
 #define LOC_HAS_ABSPATH(loc) (loc && (loc->path) && (loc->path[0] == '/'))
 #define LOC_IS_DIR(loc) (loc && (loc->inode) && \
                 (loc->inode->ia_type == IA_IFDIR))
+
+#define LSTAT_ERROR_HANDLER(ret, op_errno, this, file_path) do {               \
+                *op_errno = errno;                                             \
+                if (ret == -1) {                                               \
+                        if (errno != ENOENT)                                   \
+                                gf_msg (this->name, GF_LOG_WARNING, errno,     \
+                                        P_MSG_LSTAT_FAILED,                    \
+                                        "lstat failed on %s",                  \
+                                        file_path);                            \
+                } else {                                                       \
+                        /* Retaining wisdom of the ages here */                \
+                        /* may be some backend filesytem Issue */              \
+                        gf_msg (this->name, GF_LOG_ERROR, 0,                   \
+                                P_MSG_LSTAT_FAILED,                            \
+                                "lstat failed on %s and return value is %d "   \
+                                "instead of -1. Please see dmesg output to "   \
+                                "check whether the failure is due to backend " \
+                                "filesystem issue", file_path, ret);           \
+                        ret = -1;                                              \
+                        if (*op_errno == 0)                                    \
+                                *op_errno = EIO;                               \
+                }                                                              \
+        } while (0)
 
 #define MAKE_PGFID_XATTR_KEY(var, prefix, pgfid) do {                   \
         var = alloca (strlen (prefix) + UUID_CANONICAL_FORM_LEN + 1);   \
@@ -138,15 +166,15 @@
         }                                                               \
     } while (0)
 
-#define MAKE_HANDLE_PATH(var, this, gfid, base) do {                    \
-        int __len;                                                      \
-        __len = posix_handle_path (this, gfid, base, NULL, 0);          \
-        if (__len <= 0)                                                 \
-                break;                                                  \
-        var = alloca (__len);                                           \
-        __len = posix_handle_path (this, gfid, base, var, __len);       \
-        if (__len <= 0)                                                 \
-                var = NULL;                                             \
+#define MAKE_HANDLE_PATH(var, this, gfid, base) do {                           \
+        int mhp_len, mhp_len1;                                                 \
+        mhp_len = posix_construct_gfid_path (this, gfid, base, NULL, 0);       \
+        if (mhp_len <= 0)                                                      \
+                break;                                                         \
+        var = alloca (mhp_len);                                                \
+        mhp_len1 = posix_construct_gfid_path (this, gfid, base, var, mhp_len); \
+        if (mhp_len1 != mhp_len)                                               \
+                var = NULL;                                                    \
         } while (0)
 
 
@@ -241,6 +269,61 @@
         /* expand ELOOP */                                              \
         } while (0)
 
+/* the following exists as a macro solely to leverage alloca */
+#define POSIX_NAME_LOOKUP(this, pgfid, name, buf, parent, op_ret, op_errno) \
+        do {                                                            \
+        struct stat lstatbuf    = {0, };                                \
+        char       *file_path   = NULL;                                 \
+        MAKE_HANDLE_PATH (file_path, this, pgfid, name);                \
+        if (!file_path) {                                               \
+                op_errno = EINVAL;                                      \
+                op_ret = -1;                                            \
+                break;                                                  \
+        }                                                               \
+        op_ret = sys_lstat (file_path, &lstatbuf);                      \
+        if (op_ret != 0) {                                              \
+                LSTAT_ERROR_HANDLER(op_ret, op_errno, this, file_path); \
+                break;                                                  \
+        }                                                               \
+        if (buf) {                                                      \
+                iatt_from_stat (buf, &lstatbuf);                        \
+                ret = posix_fill_gfid_from_path (this, file_path, buf); \
+                if (ret == -1) {                                        \
+                        op_errno = errno;                               \
+                        break;                                          \
+                }                                                       \
+                posix_fill_ino_from_gfid (this, buf);                   \
+        }                                                               \
+        op_ret = 0;                                                     \
+        if (parent)                                                     \
+                parent = dirname (file_path);                           \
+        } while (0)
+
+/* the following exists as a macro solely to leverage alloca */
+#define POSIX_INODE_LOOKUP(this, gfid, buf, fpath, op_ret, op_errno)    \
+        do {                                                            \
+        struct stat lstatbuf    = {0, };                                \
+        char       *file_path   = NULL;                                 \
+        MAKE_HANDLE_PATH (file_path, this, gfid, NULL);                 \
+        if (!file_path) {                                               \
+                op_errno = EINVAL;                                      \
+                op_ret = -1;                                            \
+                break;                                                  \
+        }                                                               \
+        op_ret = sys_lstat (file_path, lstatbuf);                       \
+        if (op_ret != 0) {                                              \
+                LSTAT_ERROR_HANDLER(op_ret, op_errno, this, file_path); \
+                goto out;                                               \
+        }                                                               \
+        if (buf) {                                                      \
+                iatt_from_stat (buf, &lstatbuf);                        \
+                buf->ia_gfid = gfid;                                    \
+                posix_fill_ino_from_gfid (this, buf);                   \
+        }                                                               \
+        op_ret = 0;                                                     \
+        if (fpath)                                                      \
+                fpath = file_path;                                      \
+        } while (0)
 
 #define POSIX_ANCESTRY_PATH (1 << 0)
 #define POSIX_ANCESTRY_DENTRY (1 << 1)
