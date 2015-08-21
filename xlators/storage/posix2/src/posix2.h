@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2006-2012 Red Hat, Inc. <http://www.redhat.com>
+   Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com>
    This file is part of GlusterFS.
 
    This file is licensed to you under your choice of the GNU Lesser
@@ -36,21 +36,15 @@
 #include "inode.h"
 #include "compat.h"
 #include "timer.h"
-#include "posix-mem-types.h"
-#include "posix-handle.h"
+#include "posix2-mem-types.h"
+#include "posix2-handle.h"
 #include "call-stub.h"
-
-#ifdef HAVE_LIBAIO
-#include <libaio.h>
-#include "posix-aio.h"
-#endif
+#include "syscall.h"
 
 #define VECTOR_SIZE 64 * 1024 /* vector size 64KB*/
 #define MAX_NO_VECT 1024
 
 #define ACL_BUFFER_MAX 4096 /* size of character buffer */
-
-#define LINKTO "trusted.glusterfs.dht.linkto"
 
 #define POSIX_GFID_HANDLE_SIZE(base_path_len) (base_path_len + SLEN("/") \
                                                + SLEN(GF_HIDDEN_PATH) + SLEN("/") \
@@ -130,10 +124,6 @@ struct posix_private {
 	gf_boolean_t    aio_configured;
 	gf_boolean_t    aio_init_done;
 	gf_boolean_t    aio_capable;
-#ifdef HAVE_LIBAIO
-        io_context_t    ctxp;
-        pthread_t       aiothread;
-#endif
 
         /* node-uuid in pathinfo xattr */
         gf_boolean_t  node_uuid_pathinfo;
@@ -245,5 +235,14 @@ posix_get_objectsignature (char *, dict_t *);
 
 int32_t
 posix_fdget_objectsignature (int, dict_t *);
+
+int
+posix_construct_gfid_path (xlator_t *, uuid_t, const char *, char *, size_t);
+
+int
+posix_fill_gfid_from_path (xlator_t *, const char *, struct iatt *);
+
+void
+posix_fill_ino_from_gfid (xlator_t *, struct iatt *);
 
 #endif /* _POSIX_H */

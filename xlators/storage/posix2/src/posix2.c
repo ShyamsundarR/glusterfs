@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2006-2012 Red Hat, Inc. <http://www.redhat.com>
+   Copyright (c) 2015 Red Hat, Inc. <http://www.redhat.com>
    This file is part of GlusterFS.
 
    This file is licensed to you under your choice of the GNU Lesser
@@ -9,17 +9,12 @@
 */
 #define __XOPEN_SOURCE 500
 
-#include <openssl/md5.h>
-#include <stdint.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <errno.h>
-#include <libgen.h>
-#include <pthread.h>
-#include <ftw.h>
-#include <sys/stat.h>
-#include <signal.h>
-#include <sys/uio.h>
+#include <sys/types.h>
+#include <sys/xattr.h>
+#include <attr/xattr.h>
 
 #ifndef GF_BSD_HOST_OS
 #include <alloca.h>
@@ -29,28 +24,15 @@
 #include <fcntl.h>
 #endif /* HAVE_LINKAT */
 
-#include "glusterfs.h"
-#include "checksum.h"
-#include "dict.h"
-#include "logging.h"
-#include "posix.h"
 #include "xlator.h"
-#include "defaults.h"
-#include "common-utils.h"
-#include "compat-errno.h"
-#include "compat.h"
-#include "byte-order.h"
+#include "glusterfs.h"
+#include "logging.h"
+#include "dict.h"
+#include "posix2.h"
 #include "syscall.h"
-#include "statedump.h"
-#include "locking.h"
-#include "timer.h"
-#include "glusterfs3-xdr.h"
-#include "hashfn.h"
-#include "posix-aio.h"
 #include "glusterfs-acl.h"
-#include "posix-messages.h"
+   #include "statedump.h"
 
-extern char *marker_xattrs[];
 #define ALIGN_SIZE 4096
 
 #undef HAVE_SET_FSID
@@ -74,7 +56,8 @@ extern char *marker_xattrs[];
 #define SET_FS_ID(uid, gid)
 #define SET_TO_OLD_FS_ID()
 
-#endif
+#endif /* HAVE_SET_FSID */
+
 int
 posix_forget (xlator_t *this, inode_t *inode)
 {
@@ -93,115 +76,63 @@ posix_lookup (call_frame_t *frame, xlator_t *this,
 {
         struct iatt buf                = {0, };
         int32_t     op_ret             = -1;
-        int32_t     entry_ret          = 0;
         int32_t     op_errno           = 0;
-        dict_t *    xattr              = NULL;
-        char *      real_path          = NULL;
-        char *      par_path           = NULL;
+        dict_t     *xattr              = NULL;
+        char       *real_path          = NULL;
+        char       *par_path           = NULL;
+        int         ret                = 0;
+        uint32_t    dentry_op          = 0;
         struct iatt postparent         = {0,};
-        int32_t     gfidless           = 0;
-        char        *pgfid_xattr_key   = NULL;
-        int32_t     nlink_samepgfid    = 0;
-        struct  posix_private *priv    = NULL;
 
         VALIDATE_OR_GOTO (frame, out);
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        priv = this->private;
-
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get any gfid on it */
-        if (__is_root_gfid (loc->pargfid) && loc->name
-            && (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_LOOKUP_NOT_PERMITTED, "Lookup issued on %s,"
-                        " which is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
+        /* Determine if this is a name operation or a inode operation */
+        if (xdata) {
+                ret = dict_get_uint32 (xdata, DHT2_DENTRY_OP, &dentry_op);
         }
 
-        op_ret = dict_get_int32 (xdata, GF_GFIDLESS_LOOKUP, &gfidless);
-        op_ret = -1;
-        if (gf_uuid_is_null (loc->pargfid) || (loc->name == NULL)) {
-                /* nameless lookup */
-                MAKE_INODE_HANDLE (real_path, this, loc, &buf);
-        } else {
-                MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, &buf);
-
-                if (gf_uuid_is_null (loc->inode->gfid)) {
-                        posix_gfid_heal (this, real_path, loc, xdata);
-                        MAKE_ENTRY_HANDLE (real_path, par_path, this,
-                                           loc, &buf);
-                }
-        }
-
-        op_errno = errno;
-
-        if (op_ret == -1) {
-                if (op_errno != ENOENT) {
-                        gf_msg (this->name, GF_LOG_WARNING, op_errno,
-                                P_MSG_LSTAT_FAILED,
-                                "lstat on %s failed",
-                                real_path ? real_path : "null");
-                }
-
-                entry_ret = -1;
-                goto parent;
-        }
-
-        if (xdata && (op_ret == 0)) {
-                xattr = posix_xattr_fill (this, real_path, loc, NULL, -1, xdata,
-                                          &buf);
-        }
-
-        if (priv->update_pgfid_nlinks) {
-                if (!gf_uuid_is_null (loc->pargfid) && !IA_ISDIR (buf.ia_type)) {
-                        MAKE_PGFID_XATTR_KEY (pgfid_xattr_key,
-                                              PGFID_XATTR_KEY_PREFIX,
-                                              loc->pargfid);
-
-                        LOCK (&loc->inode->lock);
-                        {
-                                SET_PGFID_XATTR_IF_ABSENT (real_path,
-                                                           pgfid_xattr_key,
-                                                           nlink_samepgfid,
-                                                           XATTR_CREATE, op_ret,
-                                                           this, unlock);
-                        }
-unlock:
-                        UNLOCK (&loc->inode->lock);
-                }
-        }
-
-parent:
-        if (par_path) {
-                op_ret = posix_pstat (this, loc->pargfid, par_path, &postparent);
-                if (op_ret == -1) {
-                        op_errno = errno;
-                        gf_msg (this->name, GF_LOG_ERROR, errno,
-                                P_MSG_LSTAT_FAILED, "post-operation lstat on"
-                                " parent %s failed", par_path);
-			if (op_errno == ENOENT)
-				/* If parent directory is missing in a lookup,
-				   errno should be ESTALE (bad handle) and not
-				   ENOENT (missing entry)
-				*/
-				op_errno = ESTALE;
+        if (!dentry_op) {
+                /* need GFID of object in case it is not a dentry operation */
+                if (gf_uuid_is_null (loc->gfid)) {
+                        op_errno = EINVAL;
                         goto out;
                 }
+
+                POSIX_INODE_LOOKUP (this, loc->gfid, buf, real_path,
+                                    op_ret, op_errno);
+
+                /* xattrs are available only with the inode, so process them */
+                if (xdata && (op_ret == 0)) {
+                        xattr = posix_xattr_fill (this, real_path, loc, NULL,
+                                                  -1, xdata, &buf);
+                }
+        } else {
+                /* need pGFID and base name in case it is a dentry operation */
+                if (gf_uuid_is_null (loc->pargfid) || !loc->name) {
+                        op_errno = EINVAL;
+                        goto out;
+                }
+
+                POSIX_NAME_LOOKUP (this, loc->pargfid, loc->name, buf,
+                                   par_path, op_ret, op_errno);
+
+                /* parent stat information is generated irrespective of
+                 * basename being found or not */
+                if (par_path) {
+                        ret = posix_pstat (this, loc->pargfid,
+                                           par_path, &postparent);
+                        if (ret == -1) {
+                                if (op_errno == ENOENT)
+                                        /* pGFID missing, hence ESTALE */
+                                        op_errno = ESTALE;
+                                op_ret = -1;
+                        }
+                }
         }
 
-        op_ret = entry_ret;
 out:
-        if (!op_ret && !gfidless && gf_uuid_is_null (buf.ia_gfid)) {
-                gf_msg (this->name, GF_LOG_ERROR, ENODATA, P_MSG_NULL_GFID,
-                        "buf->ia_gfid is null for "
-                        "%s", (real_path) ? real_path: "");
-                op_ret = -1;
-                op_errno = ENODATA;
-        }
         STACK_UNWIND_STRICT (lookup, frame, op_ret, op_errno,
                              (loc)?loc->inode:NULL, &buf, xattr, &postparent);
 
@@ -218,7 +149,6 @@ posix_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         struct iatt           buf       = {0,};
         int32_t               op_ret    = -1;
         int32_t               op_errno  = 0;
-        struct posix_private *priv      = NULL;
         char                 *real_path = NULL;
         dict_t               *xattr_rsp = NULL;
 
@@ -228,15 +158,10 @@ posix_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        priv = this->private;
-        VALIDATE_OR_GOTO (priv, out);
-
         SET_FS_ID (frame->root->uid, frame->root->gid);
 
-        MAKE_INODE_HANDLE (real_path, this, loc, &buf);
-
+        POSIX_INODE_LOOKUP (this, loc->gfid, buf, real_path, op_ret, op_errno);
         if (op_ret == -1) {
-                op_errno = errno;
                 if (op_errno == ENOENT) {
                         gf_msg_debug(this->name, 0, "lstat on %s failed: %s",
                                      real_path ? real_path : "<null>",
@@ -379,8 +304,9 @@ posix_setattr (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (loc, out);
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
-        MAKE_INODE_HANDLE (real_path, this, loc, &statpre);
 
+        POSIX_INODE_LOOKUP (this, loc->gfid, statpre, real_path,
+                            op_ret, op_errno);
         if (op_ret == -1) {
                 op_errno = errno;
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
@@ -434,6 +360,7 @@ posix_setattr (call_frame_t *frame, xlator_t *this,
                 }
         }
 
+        /* TBD: Need to change a little to handle gfid filling */
         op_ret = posix_pstat (this, loc->gfid, real_path, &statpost);
         if (op_ret == -1) {
                 op_errno = errno;
@@ -925,7 +852,7 @@ posix_opendir (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (fd, out);
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
-        MAKE_INODE_HANDLE (real_path, this, loc, NULL);
+        MAKE_HANDLE_PATH (real_path, this, loc->gfid, NULL);
         if (!real_path) {
                 op_errno = ESTALE;
                 goto out;
@@ -1043,7 +970,8 @@ posix_readlink (call_frame_t *frame, xlator_t *this,
 
         dest = alloca (size + 1);
 
-        MAKE_INODE_HANDLE (real_path, this, loc, &stbuf);
+        POSIX_INODE_LOOKUP (this, loc->gfid, stbuf, real_path,
+                            op_ret, op_errno);
         if (op_ret == -1) {
                 op_errno = errno;
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
@@ -1069,7 +997,765 @@ out:
         return 0;
 }
 
+int32_t
+posix_truncate (call_frame_t *frame, xlator_t *this, loc_t *loc, off_t offset,
+                dict_t *xdata)
+{
+        int32_t               op_ret    = -1;
+        int32_t               op_errno  = 0;
+        char                 *real_path = 0;
+        struct posix_private *priv      = NULL;
+        struct iatt           prebuf    = {0,};
+        struct iatt           postbuf   = {0,};
 
+        DECLARE_OLD_FS_ID_VAR;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (loc, out);
+
+        priv = this->private;
+        VALIDATE_OR_GOTO (priv, out);
+
+        SET_FS_ID (frame->root->uid, frame->root->gid);
+
+        POSIX_INODE_LOOKUP (this, loc->gfid, prebuf, real_path, op_ret, op_errno);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
+                        "pre-operation lstat on %s failed",
+                        real_path ? real_path : "<null>");
+                goto out;
+        }
+
+        op_ret = truncate (real_path, offset);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_TRUNCATE_FAILED,
+                        "truncate on %s failed", real_path);
+                goto out;
+        }
+
+        op_ret = posix_pstat (this, loc->gfid, real_path, &postbuf);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
+                        "lstat on %s failed", real_path);
+                goto out;
+        }
+
+        op_ret = 0;
+out:
+        SET_TO_OLD_FS_ID ();
+
+        STACK_UNWIND_STRICT (truncate, frame, op_ret, op_errno,
+                             &prebuf, &postbuf, NULL);
+
+        return 0;
+}
+
+int32_t
+posix_open (call_frame_t *frame, xlator_t *this,
+            loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
+{
+        int32_t               op_ret       = -1;
+        int32_t               op_errno     = 0;
+        char                 *real_path    = NULL;
+        int32_t               _fd          = -1;
+        struct posix_fd      *pfd          = NULL;
+        struct posix_private *priv         = NULL;
+        struct iatt           stbuf        = {0, };
+
+        DECLARE_OLD_FS_ID_VAR;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (this->private, out);
+        VALIDATE_OR_GOTO (loc, out);
+        VALIDATE_OR_GOTO (fd, out);
+
+        priv = this->private;
+        VALIDATE_OR_GOTO (priv, out);
+
+        POSIX_INODE_LOOKUP (this, loc->gfid, stbuf, real_path, op_ret, op_errno);
+        if (!real_path) {
+                op_ret = -1;
+                op_errno = ESTALE;
+                goto out;
+        }
+
+        if (IA_ISLNK (stbuf.ia_type)) {
+                op_ret = -1;
+                op_errno = ELOOP;
+                goto out;
+        }
+
+        op_ret = -1;
+        SET_FS_ID (frame->root->uid, frame->root->gid);
+
+        if (priv->o_direct)
+                flags |= O_DIRECT;
+
+        _fd = open (real_path, flags, 0);
+        if (_fd == -1) {
+                op_ret   = -1;
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FILE_OP_FAILED,
+                        "open on %s, flags: %d", real_path, flags);
+                goto out;
+        }
+
+        pfd = GF_CALLOC (1, sizeof (*pfd), gf_posix_mt_posix_fd);
+        if (!pfd) {
+                op_errno = errno;
+                goto out;
+        }
+
+        pfd->flags = flags;
+        pfd->fd    = _fd;
+
+        op_ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
+        if (op_ret)
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        P_MSG_FD_PATH_SETTING_FAILED,
+                        "failed to set the fd context path=%s fd=%p",
+                        real_path, fd);
+
+        LOCK (&priv->lock);
+        {
+                priv->nr_files++;
+        }
+        UNLOCK (&priv->lock);
+
+        op_ret = 0;
+
+out:
+        if (op_ret == -1) {
+                if (_fd != -1) {
+                        close (_fd);
+                }
+        }
+
+        SET_TO_OLD_FS_ID ();
+
+        STACK_UNWIND_STRICT (open, frame, op_ret, op_errno, fd, NULL);
+
+        return 0;
+}
+
+int
+posix_readv (call_frame_t *frame, xlator_t *this,
+             fd_t *fd, size_t size, off_t offset, uint32_t flags, dict_t *xdata)
+{
+        int32_t                op_ret     = -1;
+        int32_t                op_errno   = 0;
+        int                    _fd        = -1;
+        struct posix_private * priv       = NULL;
+        struct iobuf         * iobuf      = NULL;
+        struct iobref        * iobref     = NULL;
+        struct iovec           vec        = {0,};
+        struct posix_fd *      pfd        = NULL;
+        struct iatt            stbuf      = {0,};
+        int                    ret        = -1;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (this->private, out);
+
+        priv = this->private;
+        VALIDATE_OR_GOTO (priv, out);
+
+        ret = posix_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                op_errno = -ret;
+                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                goto out;
+        }
+
+        if (!size) {
+                op_errno = EINVAL;
+                gf_msg (this->name, GF_LOG_WARNING, EINVAL,
+                        P_MSG_INVALID_ARGUMENT, "size=%"GF_PRI_SIZET, size);
+                goto out;
+        }
+
+        iobuf = iobuf_get2 (this->ctx->iobuf_pool, size);
+        if (!iobuf) {
+                op_errno = ENOMEM;
+                goto out;
+        }
+
+        _fd = pfd->fd;
+        op_ret = pread (_fd, iobuf->ptr, size, offset);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_READ_FAILED,
+                        "read failed on fd=%p", fd);
+                goto out;
+        }
+
+        LOCK (&priv->lock);
+        {
+                priv->read_value    += op_ret;
+        }
+        UNLOCK (&priv->lock);
+
+        vec.iov_base = iobuf->ptr;
+        vec.iov_len  = op_ret;
+
+        iobref = iobref_new ();
+
+        iobref_add (iobref, iobuf);
+
+        /*
+         *  readv successful, and we need to get the stat of the file
+         *  we read from
+         */
+
+        op_ret = posix_fdstat (this, _fd, &stbuf);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FSTAT_FAILED,
+                        "fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        /* Hack to notify higher layers of EOF. */
+        if (!stbuf.ia_size || (offset + vec.iov_len) >= stbuf.ia_size)
+                op_errno = ENOENT;
+
+        op_ret = vec.iov_len;
+out:
+
+        STACK_UNWIND_STRICT (readv, frame, op_ret, op_errno,
+                             &vec, 1, &stbuf, iobref, NULL);
+
+        if (iobref)
+                iobref_unref (iobref);
+        if (iobuf)
+                iobuf_unref (iobuf);
+
+        return 0;
+}
+
+
+int32_t
+__posix_pwritev (int fd, struct iovec *vector, int count, off_t offset)
+{
+        int32_t         op_ret = 0;
+        int             idx = 0;
+        int             retval = 0;
+        off_t           internal_off = 0;
+
+        if (!vector)
+                return -EFAULT;
+
+        internal_off = offset;
+        for (idx = 0; idx < count; idx++) {
+                retval = pwrite (fd, vector[idx].iov_base, vector[idx].iov_len,
+                                 internal_off);
+                if (retval == -1) {
+                        op_ret = -errno;
+                        goto err;
+                }
+                op_ret += retval;
+                internal_off += retval;
+        }
+
+err:
+        return op_ret;
+}
+
+int32_t
+__posix_writev (int fd, struct iovec *vector, int count, off_t startoff,
+                int odirect)
+{
+        int32_t         op_ret = 0;
+        int             idx = 0;
+        int             max_buf_size = 0;
+        int             retval = 0;
+        char            *buf = NULL;
+        char            *alloc_buf = NULL;
+        off_t           internal_off = 0;
+
+        /* Check for the O_DIRECT flag during open() */
+        if (!odirect)
+                return __posix_pwritev (fd, vector, count, startoff);
+
+        for (idx = 0; idx < count; idx++) {
+                if (max_buf_size < vector[idx].iov_len)
+                        max_buf_size = vector[idx].iov_len;
+        }
+
+        alloc_buf = _page_aligned_alloc (max_buf_size, &buf);
+        if (!alloc_buf) {
+                op_ret = -errno;
+                goto err;
+        }
+
+        internal_off = startoff;
+        for (idx = 0; idx < count; idx++) {
+                memcpy (buf, vector[idx].iov_base, vector[idx].iov_len);
+
+                /* not sure whether writev works on O_DIRECT'd fd */
+                retval = pwrite (fd, buf, vector[idx].iov_len, internal_off);
+                if (retval == -1) {
+                        op_ret = -errno;
+                        goto err;
+                }
+
+                op_ret += retval;
+                internal_off += retval;
+        }
+
+err:
+        GF_FREE (alloc_buf);
+
+        return op_ret;
+}
+
+dict_t*
+_fill_writev_xdata (fd_t *fd, dict_t *xdata, xlator_t *this, int is_append)
+{
+        dict_t  *rsp_xdata = NULL;
+        int32_t ret = 0;
+        inode_t *inode = NULL;
+
+        if (fd)
+                inode = fd->inode;
+
+        if (!fd || !fd->inode || gf_uuid_is_null (fd->inode->gfid)) {
+                gf_log_callingfn (this->name, GF_LOG_ERROR, "Invalid Args: "
+                                  "fd: %p inode: %p gfid:%s", fd, inode?inode:0,
+                                  inode?uuid_utoa(inode->gfid):"N/A");
+                goto out;
+        }
+
+        if (!xdata || !dict_get (xdata, GLUSTERFS_OPEN_FD_COUNT))
+                goto out;
+
+        rsp_xdata = dict_new();
+        if (!rsp_xdata)
+                goto out;
+
+        ret = dict_set_uint32 (rsp_xdata, GLUSTERFS_OPEN_FD_COUNT,
+                               fd->inode->fd_count);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DICT_SET_FAILED,
+                        "%s: Failed to set dictionary value for %s",
+                        uuid_utoa (fd->inode->gfid), GLUSTERFS_OPEN_FD_COUNT);
+        }
+
+        ret = dict_set_uint32 (rsp_xdata, GLUSTERFS_WRITE_IS_APPEND,
+                               is_append);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DICT_SET_FAILED,
+                        "%s: Failed to set dictionary value for %s",
+                        uuid_utoa (fd->inode->gfid),
+                        GLUSTERFS_WRITE_IS_APPEND);
+        }
+out:
+        return rsp_xdata;
+}
+
+int32_t
+posix_writev (call_frame_t *frame, xlator_t *this, fd_t *fd,
+              struct iovec *vector, int32_t count, off_t offset,
+              uint32_t flags, struct iobref *iobref, dict_t *xdata)
+{
+        int32_t                op_ret   = -1;
+        int32_t                op_errno = 0;
+        int                    _fd      = -1;
+        struct posix_private * priv     = NULL;
+        struct posix_fd *      pfd      = NULL;
+        struct iatt            preop    = {0,};
+        struct iatt            postop    = {0,};
+        int                      ret      = -1;
+        dict_t                *rsp_xdata = NULL;
+        int                    is_append = 0;
+        gf_boolean_t           locked = _gf_false;
+        gf_boolean_t           write_append = _gf_false;
+        gf_boolean_t           update_atomic = _gf_false;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (vector, out);
+        VALIDATE_OR_GOTO (this->private, out);
+
+        priv = this->private;
+
+        VALIDATE_OR_GOTO (priv, out);
+
+        ret = posix_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, ret, P_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                op_errno = -ret;
+                goto out;
+        }
+
+        _fd = pfd->fd;
+
+        if (xdata) {
+                if (dict_get (xdata, GLUSTERFS_WRITE_IS_APPEND))
+                        write_append = _gf_true;
+                if (dict_get (xdata, GLUSTERFS_WRITE_UPDATE_ATOMIC))
+                        update_atomic = _gf_true;
+        }
+
+        /* The write_is_append check and write must happen
+           atomically. Else another write can overtake this
+           write after the check and get written earlier.
+
+           So lock before preop-stat and unlock after write.
+        */
+
+        /*
+         * The update_atomic option is to instruct posix to do prestat,
+         * write and poststat atomically. This is to prevent any modification to
+         * ia_size and ia_blocks until poststat and the diff in their values
+         * between pre and poststat could be of use for some translators (shard
+         * as of today).
+         */
+
+        if (write_append || update_atomic) {
+                locked = _gf_true;
+                LOCK(&fd->inode->lock);
+        }
+
+        op_ret = posix_fdstat (this, _fd, &preop);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FSTAT_FAILED,
+                        "pre-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        if (locked && write_append) {
+                if (preop.ia_size == offset || (fd->flags & O_APPEND))
+                        is_append = 1;
+        }
+
+        op_ret = __posix_writev (_fd, vector, count, offset,
+                                 (pfd->flags & O_DIRECT));
+
+        if (locked && (!update_atomic)) {
+                UNLOCK (&fd->inode->lock);
+                locked = _gf_false;
+        }
+
+        if (op_ret < 0) {
+                op_errno = -op_ret;
+                op_ret = -1;
+                gf_msg (this->name, GF_LOG_ERROR, op_errno, P_MSG_WRITE_FAILED,
+                        "write failed: offset %"PRIu64
+                        ",", offset);
+                goto out;
+        }
+
+        rsp_xdata = _fill_writev_xdata (fd, xdata, this, is_append);
+        /* writev successful, we also need to get the stat of
+         * the file we wrote to
+         */
+
+        ret = posix_fdstat (this, _fd, &postop);
+        if (ret == -1) {
+                op_ret = -1;
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        P_MSG_FSTAT_FAILED,
+                        "post-operation fstat failed on fd=%p",
+                        fd);
+                goto out;
+        }
+
+        if (locked) {
+                UNLOCK (&fd->inode->lock);
+                locked = _gf_false;
+        }
+
+        if (flags & (O_SYNC|O_DSYNC)) {
+                ret = fsync (_fd);
+                if (ret) {
+                        gf_msg (this->name, GF_LOG_ERROR, errno,
+                                P_MSG_WRITEV_FAILED,
+                                "fsync() in writev on fd %d failed",
+                                _fd);
+                        op_ret = -1;
+                        op_errno = errno;
+                        goto out;
+                }
+        }
+
+        LOCK (&priv->lock);
+        {
+                priv->write_value    += op_ret;
+        }
+        UNLOCK (&priv->lock);
+
+out:
+
+        if (locked) {
+                UNLOCK (&fd->inode->lock);
+                locked = _gf_false;
+        }
+
+        STACK_UNWIND_STRICT (writev, frame, op_ret, op_errno, &preop, &postop,
+                             rsp_xdata);
+
+        if (rsp_xdata)
+                dict_unref (rsp_xdata);
+        return 0;
+}
+
+
+int32_t
+posix_statfs (call_frame_t *frame, xlator_t *this,
+              loc_t *loc, dict_t *xdata)
+{
+        char *                 real_path = NULL;
+        int32_t                op_ret    = -1;
+        int32_t                op_errno  = 0;
+        struct iatt            stbuf     = {0, };
+        struct statvfs         buf       = {0, };
+        struct posix_private * priv      = NULL;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (loc, out);
+        VALIDATE_OR_GOTO (this->private, out);
+
+        POSIX_INODE_LOOKUP (this, loc->gfid, stbuf, real_path, op_ret,
+                            op_errno);
+        if (!real_path) {
+                op_ret = -1;
+                op_errno = ESTALE;
+                goto out;
+        }
+
+        priv = this->private;
+
+        op_ret = statvfs (real_path, &buf);
+
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_STATVFS_FAILED,
+                        "statvfs failed on %s", real_path);
+                goto out;
+        }
+
+        if (!priv->export_statfs) {
+                buf.f_blocks = 0;
+                buf.f_bfree  = 0;
+                buf.f_bavail = 0;
+                buf.f_files  = 0;
+                buf.f_ffree  = 0;
+                buf.f_favail = 0;
+        }
+
+        op_ret = 0;
+
+out:
+        STACK_UNWIND_STRICT (statfs, frame, op_ret, op_errno, &buf, NULL);
+        return 0;
+}
+
+
+int32_t
+posix_flush (call_frame_t *frame, xlator_t *this,
+             fd_t *fd, dict_t *xdata)
+{
+        int32_t           op_ret   = -1;
+        int32_t           op_errno = 0;
+        int               ret      = -1;
+        struct posix_fd  *pfd      = NULL;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+
+        ret = posix_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                op_errno = -ret;
+                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
+                        "pfd is NULL on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = 0;
+
+out:
+        STACK_UNWIND_STRICT (flush, frame, op_ret, op_errno, NULL);
+
+        return 0;
+}
+
+
+int32_t
+posix_release (xlator_t *this, fd_t *fd)
+{
+        struct posix_private * priv     = NULL;
+        struct posix_fd *      pfd      = NULL;
+        int                    ret      = -1;
+        uint64_t               tmp_pfd  = 0;
+
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+
+        priv = this->private;
+
+        ret = fd_ctx_del (fd, this, &tmp_pfd);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                goto out;
+        }
+        pfd = (struct posix_fd *)(long)tmp_pfd;
+
+        if (pfd->dir) {
+                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DIR_NOT_NULL,
+                        "pfd->dir is %p (not NULL) for file fd=%p",
+                        pfd->dir, fd);
+        }
+
+        pthread_mutex_lock (&priv->janitor_lock);
+        {
+                INIT_LIST_HEAD (&pfd->list);
+                list_add_tail (&pfd->list, &priv->janitor_fds);
+                pthread_cond_signal (&priv->janitor_cond);
+        }
+        pthread_mutex_unlock (&priv->janitor_lock);
+
+        LOCK (&priv->lock);
+        {
+                priv->nr_files--;
+        }
+        UNLOCK (&priv->lock);
+
+out:
+        return 0;
+}
+
+int
+posix_batch_fsync (call_frame_t *frame, xlator_t *this,
+                     fd_t *fd, int datasync, dict_t *xdata)
+{
+        call_stub_t *stub = NULL;
+        struct posix_private *priv = NULL;
+
+        priv = this->private;
+
+        stub = fop_fsync_stub (frame, default_fsync, fd, datasync, xdata);
+        if (!stub) {
+                STACK_UNWIND_STRICT (fsync, frame, -1, ENOMEM, 0, 0, 0);
+                return 0;
+        }
+
+        pthread_mutex_lock (&priv->fsync_mutex);
+        {
+                list_add_tail (&stub->list, &priv->fsyncs);
+                priv->fsync_queue_count++;
+                pthread_cond_signal (&priv->fsync_cond);
+        }
+        pthread_mutex_unlock (&priv->fsync_mutex);
+
+        return 0;
+}
+
+int32_t
+posix_fsync (call_frame_t *frame, xlator_t *this,
+             fd_t *fd, int32_t datasync, dict_t *xdata)
+{
+        int32_t           op_ret   = -1;
+        int32_t           op_errno = 0;
+        int               _fd      = -1;
+        struct posix_fd * pfd      = NULL;
+        int               ret      = -1;
+        struct iatt       preop = {0,};
+        struct iatt       postop = {0,};
+        struct posix_private *priv = NULL;
+
+        DECLARE_OLD_FS_ID_VAR;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+
+        SET_FS_ID (frame->root->uid, frame->root->gid);
+
+#ifdef GF_DARWIN_HOST_OS
+        /* Always return success in case of fsync in MAC OS X */
+        op_ret = 0;
+        goto out;
+#endif
+
+        priv = this->private;
+        if (priv->batch_fsync_mode && xdata && dict_get (xdata, "batch-fsync")) {
+                posix_batch_fsync (frame, this, fd, datasync, xdata);
+                return 0;
+        }
+
+        ret = posix_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                op_errno = -ret;
+                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
+                        "pfd not found in fd's ctx");
+                goto out;
+        }
+
+        _fd = pfd->fd;
+
+        op_ret = posix_fdstat (this, _fd, &preop);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_WARNING, errno, P_MSG_FSTAT_FAILED,
+                        "pre-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        if (datasync) {
+                op_ret = sys_fdatasync (_fd);
+                if (op_ret == -1) {
+                        op_errno = errno;
+                        gf_msg (this->name, GF_LOG_ERROR, errno,
+                                P_MSG_FSYNC_FAILED, "fdatasync on fd=%p"
+                                "failed:", fd);
+                        goto out;
+                }
+        } else {
+                op_ret = sys_fsync (_fd);
+                if (op_ret == -1) {
+                        op_errno = errno;
+                        gf_msg (this->name, GF_LOG_ERROR, errno,
+                                P_MSG_FSYNC_FAILED, "fsync on fd=%p "
+                                "failed", fd);
+                        goto out;
+                }
+        }
+
+        op_ret = posix_fdstat (this, _fd, &postop);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_WARNING, errno, P_MSG_FSTAT_FAILED,
+                        "post-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = 0;
+
+out:
+        SET_TO_OLD_FS_ID ();
+
+        STACK_UNWIND_STRICT (fsync, frame, op_ret, op_errno, &preop, &postop,
+                             NULL);
+
+        return 0;
+}
+
+#ifdef NOT_YET
 int
 posix_mknod (call_frame_t *frame, xlator_t *this,
              loc_t *loc, mode_t mode, dev_t dev, mode_t umask, dict_t *xdata)
@@ -1283,55 +1969,20 @@ posix_mkdir (call_frame_t *frame, xlator_t *this,
         VALIDATE_OR_GOTO (this, out);
         VALIDATE_OR_GOTO (loc, out);
 
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get created from a user request */
-        if (__is_root_gfid (loc->pargfid) &&
-            (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_MKDIR_NOT_PERMITTED, "mkdir issued on %s, which"
-                        "is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
-        }
-
         priv = this->private;
         VALIDATE_OR_GOTO (priv, out);
 
-        MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, NULL);
-        if (!real_path || !par_path) {
-                op_ret = -1;
-                op_errno = ESTALE;
-                goto out;
-        }
-
         gid = frame->root->gid;
-
-        op_ret = posix_pstat (this, NULL, real_path, &stbuf);
 
         SET_FS_ID (frame->root->uid, gid);
 
+        /* this denotes that the mkdir is to create the name entry
+         * if absent, it would mean creation of gfid directory (or dinode) */
+        op_ret = dict_get_ptr (xdata, "posix-name-operation", &uuid_req);
+
         op_ret = dict_get_ptr (xdata, "gfid-req", &uuid_req);
         if (uuid_req && !gf_uuid_is_null (uuid_req)) {
-                op_ret = posix_istat (this, uuid_req, NULL, &stbuf);
-                if ((op_ret == 0) && IA_ISDIR (stbuf.ia_type)) {
-                        size = posix_handle_path (this, uuid_req, NULL, NULL,
-                                                  0);
-                        if (size > 0)
-                                gfid_path = alloca (size);
 
-                        if (gfid_path)
-                                posix_handle_path (this, uuid_req, NULL,
-                                                   gfid_path, size);
-
-                        gf_msg (this->name, GF_LOG_WARNING, 0,
-                                P_MSG_DIR_OF_SAME_ID, "mkdir (%s): gfid (%s) is"
-                                "already associated with directory (%s). Hence,"
-                                "both directories will share same gfid and this"
-                                "can lead to inconsistencies.", loc->path,
-                                uuid_utoa (uuid_req), gfid_path ? gfid_path
-                                : "<NULL>");
-                }
         }
 
         op_ret = posix_pstat (this, loc->pargfid, par_path, &preparent);
@@ -1367,7 +2018,7 @@ posix_mkdir (call_frame_t *frame, xlator_t *this,
                 goto out;
         }
 #endif
-        op_ret = posix_acl_xattr_set (this, real_path, xdata);
+        op_ret = posix_acl_xattr_set     (this, real_path, xdata);
         if (op_ret) {
                 gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_ACL_FAILED,
                         "setting ACLs on %s failed ", real_path);
@@ -1696,19 +2347,9 @@ posix_rmdir (call_frame_t *frame, xlator_t *this,
 
         SET_FS_ID (frame->root->uid, frame->root->gid);
 
-        /* The Hidden directory should be for housekeeping purpose and it
-           should not get deleted from inside process */
-        if (__is_root_gfid (loc->pargfid) &&
-            (strcmp (loc->name, GF_HIDDEN_PATH) == 0)) {
-                gf_msg (this->name, GF_LOG_WARNING, EPERM,
-                        P_MSG_RMDIR_NOT_PERMITTED, "rmdir issued on %s, which"
-                        "is not permitted", GF_HIDDEN_PATH);
-                op_errno = EPERM;
-                op_ret = -1;
-                goto out;
-        }
-
         priv = this->private;
+
+        op_ret = dict_get_ptr (xdata, "posix-name-operation", &uuid_req);
 
         MAKE_ENTRY_HANDLE (real_path, par_path, this, loc, &stbuf);
         if (!real_path || !par_path) {
@@ -2263,65 +2904,6 @@ out:
         return 0;
 }
 
-
-int32_t
-posix_truncate (call_frame_t *frame, xlator_t *this, loc_t *loc, off_t offset,
-                dict_t *xdata)
-{
-        int32_t               op_ret    = -1;
-        int32_t               op_errno  = 0;
-        char                 *real_path = 0;
-        struct posix_private *priv      = NULL;
-        struct iatt           prebuf    = {0,};
-        struct iatt           postbuf   = {0,};
-
-        DECLARE_OLD_FS_ID_VAR;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (loc, out);
-
-        priv = this->private;
-        VALIDATE_OR_GOTO (priv, out);
-
-        SET_FS_ID (frame->root->uid, frame->root->gid);
-
-        MAKE_INODE_HANDLE (real_path, this, loc, &prebuf);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
-                        "pre-operation lstat on %s failed",
-                        real_path ? real_path : "<null>");
-                goto out;
-        }
-
-        op_ret = truncate (real_path, offset);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_TRUNCATE_FAILED,
-                        "truncate on %s failed", real_path);
-                goto out;
-        }
-
-        op_ret = posix_pstat (this, loc->gfid, real_path, &postbuf);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_LSTAT_FAILED,
-                        "lstat on %s failed", real_path);
-                goto out;
-        }
-
-        op_ret = 0;
-out:
-        SET_TO_OLD_FS_ID ();
-
-        STACK_UNWIND_STRICT (truncate, frame, op_ret, op_errno,
-                             &prebuf, &postbuf, NULL);
-
-        return 0;
-}
-
-
 int
 posix_create (call_frame_t *frame, xlator_t *this,
               loc_t *loc, int32_t flags, mode_t mode,
@@ -2511,707 +3093,6 @@ out:
                 if (gfid_set)
                         posix_gfid_unset (this, xdata);
         }
-
-        return 0;
-}
-
-int32_t
-posix_open (call_frame_t *frame, xlator_t *this,
-            loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
-{
-        int32_t               op_ret       = -1;
-        int32_t               op_errno     = 0;
-        char                 *real_path    = NULL;
-        int32_t               _fd          = -1;
-        struct posix_fd      *pfd          = NULL;
-        struct posix_private *priv         = NULL;
-        struct iatt           stbuf        = {0, };
-
-        DECLARE_OLD_FS_ID_VAR;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (this->private, out);
-        VALIDATE_OR_GOTO (loc, out);
-        VALIDATE_OR_GOTO (fd, out);
-
-        priv = this->private;
-        VALIDATE_OR_GOTO (priv, out);
-
-        MAKE_INODE_HANDLE (real_path, this, loc, &stbuf);
-        if (!real_path) {
-                op_ret = -1;
-                op_errno = ESTALE;
-                goto out;
-        }
-
-        if (IA_ISLNK (stbuf.ia_type)) {
-                op_ret = -1;
-                op_errno = ELOOP;
-                goto out;
-        }
-
-        op_ret = -1;
-        SET_FS_ID (frame->root->uid, frame->root->gid);
-
-        if (priv->o_direct)
-                flags |= O_DIRECT;
-
-        _fd = open (real_path, flags, 0);
-        if (_fd == -1) {
-                op_ret   = -1;
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FILE_OP_FAILED,
-                        "open on %s, flags: %d", real_path, flags);
-                goto out;
-        }
-
-        pfd = GF_CALLOC (1, sizeof (*pfd), gf_posix_mt_posix_fd);
-        if (!pfd) {
-                op_errno = errno;
-                goto out;
-        }
-
-        pfd->flags = flags;
-        pfd->fd    = _fd;
-
-        op_ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
-        if (op_ret)
-                gf_msg (this->name, GF_LOG_WARNING, 0,
-                        P_MSG_FD_PATH_SETTING_FAILED,
-                        "failed to set the fd context path=%s fd=%p",
-                        real_path, fd);
-
-        LOCK (&priv->lock);
-        {
-                priv->nr_files++;
-        }
-        UNLOCK (&priv->lock);
-
-        op_ret = 0;
-
-out:
-        if (op_ret == -1) {
-                if (_fd != -1) {
-                        close (_fd);
-                }
-        }
-
-        SET_TO_OLD_FS_ID ();
-
-        STACK_UNWIND_STRICT (open, frame, op_ret, op_errno, fd, NULL);
-
-        return 0;
-}
-
-int
-posix_readv (call_frame_t *frame, xlator_t *this,
-             fd_t *fd, size_t size, off_t offset, uint32_t flags, dict_t *xdata)
-{
-        int32_t                op_ret     = -1;
-        int32_t                op_errno   = 0;
-        int                    _fd        = -1;
-        struct posix_private * priv       = NULL;
-        struct iobuf         * iobuf      = NULL;
-        struct iobref        * iobref     = NULL;
-        struct iovec           vec        = {0,};
-        struct posix_fd *      pfd        = NULL;
-        struct iatt            stbuf      = {0,};
-        int                    ret        = -1;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (fd, out);
-        VALIDATE_OR_GOTO (this->private, out);
-
-        priv = this->private;
-        VALIDATE_OR_GOTO (priv, out);
-
-        ret = posix_fd_ctx_get (fd, this, &pfd);
-        if (ret < 0) {
-                op_errno = -ret;
-                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
-                        "pfd is NULL from fd=%p", fd);
-                goto out;
-        }
-
-        if (!size) {
-                op_errno = EINVAL;
-                gf_msg (this->name, GF_LOG_WARNING, EINVAL,
-                        P_MSG_INVALID_ARGUMENT, "size=%"GF_PRI_SIZET, size);
-                goto out;
-        }
-
-        iobuf = iobuf_get2 (this->ctx->iobuf_pool, size);
-        if (!iobuf) {
-                op_errno = ENOMEM;
-                goto out;
-        }
-
-        _fd = pfd->fd;
-        op_ret = pread (_fd, iobuf->ptr, size, offset);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_READ_FAILED,
-                        "read failed on fd=%p", fd);
-                goto out;
-        }
-
-        LOCK (&priv->lock);
-        {
-                priv->read_value    += op_ret;
-        }
-        UNLOCK (&priv->lock);
-
-        vec.iov_base = iobuf->ptr;
-        vec.iov_len  = op_ret;
-
-        iobref = iobref_new ();
-
-        iobref_add (iobref, iobuf);
-
-        /*
-         *  readv successful, and we need to get the stat of the file
-         *  we read from
-         */
-
-        op_ret = posix_fdstat (this, _fd, &stbuf);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FSTAT_FAILED,
-                        "fstat failed on fd=%p", fd);
-                goto out;
-        }
-
-        /* Hack to notify higher layers of EOF. */
-        if (!stbuf.ia_size || (offset + vec.iov_len) >= stbuf.ia_size)
-                op_errno = ENOENT;
-
-        op_ret = vec.iov_len;
-out:
-
-        STACK_UNWIND_STRICT (readv, frame, op_ret, op_errno,
-                             &vec, 1, &stbuf, iobref, NULL);
-
-        if (iobref)
-                iobref_unref (iobref);
-        if (iobuf)
-                iobuf_unref (iobuf);
-
-        return 0;
-}
-
-
-int32_t
-__posix_pwritev (int fd, struct iovec *vector, int count, off_t offset)
-{
-        int32_t         op_ret = 0;
-        int             idx = 0;
-        int             retval = 0;
-        off_t           internal_off = 0;
-
-        if (!vector)
-                return -EFAULT;
-
-        internal_off = offset;
-        for (idx = 0; idx < count; idx++) {
-                retval = pwrite (fd, vector[idx].iov_base, vector[idx].iov_len,
-                                 internal_off);
-                if (retval == -1) {
-                        op_ret = -errno;
-                        goto err;
-                }
-                op_ret += retval;
-                internal_off += retval;
-        }
-
-err:
-        return op_ret;
-}
-
-int32_t
-__posix_writev (int fd, struct iovec *vector, int count, off_t startoff,
-                int odirect)
-{
-        int32_t         op_ret = 0;
-        int             idx = 0;
-        int             max_buf_size = 0;
-        int             retval = 0;
-        char            *buf = NULL;
-        char            *alloc_buf = NULL;
-        off_t           internal_off = 0;
-
-        /* Check for the O_DIRECT flag during open() */
-        if (!odirect)
-                return __posix_pwritev (fd, vector, count, startoff);
-
-        for (idx = 0; idx < count; idx++) {
-                if (max_buf_size < vector[idx].iov_len)
-                        max_buf_size = vector[idx].iov_len;
-        }
-
-        alloc_buf = _page_aligned_alloc (max_buf_size, &buf);
-        if (!alloc_buf) {
-                op_ret = -errno;
-                goto err;
-        }
-
-        internal_off = startoff;
-        for (idx = 0; idx < count; idx++) {
-                memcpy (buf, vector[idx].iov_base, vector[idx].iov_len);
-
-                /* not sure whether writev works on O_DIRECT'd fd */
-                retval = pwrite (fd, buf, vector[idx].iov_len, internal_off);
-                if (retval == -1) {
-                        op_ret = -errno;
-                        goto err;
-                }
-
-                op_ret += retval;
-                internal_off += retval;
-        }
-
-err:
-        GF_FREE (alloc_buf);
-
-        return op_ret;
-}
-
-dict_t*
-_fill_writev_xdata (fd_t *fd, dict_t *xdata, xlator_t *this, int is_append)
-{
-        dict_t  *rsp_xdata = NULL;
-        int32_t ret = 0;
-        inode_t *inode = NULL;
-
-        if (fd)
-                inode = fd->inode;
-
-        if (!fd || !fd->inode || gf_uuid_is_null (fd->inode->gfid)) {
-                gf_log_callingfn (this->name, GF_LOG_ERROR, "Invalid Args: "
-                                  "fd: %p inode: %p gfid:%s", fd, inode?inode:0,
-                                  inode?uuid_utoa(inode->gfid):"N/A");
-                goto out;
-        }
-
-        if (!xdata || !dict_get (xdata, GLUSTERFS_OPEN_FD_COUNT))
-                goto out;
-
-        rsp_xdata = dict_new();
-        if (!rsp_xdata)
-                goto out;
-
-        ret = dict_set_uint32 (rsp_xdata, GLUSTERFS_OPEN_FD_COUNT,
-                               fd->inode->fd_count);
-        if (ret < 0) {
-                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DICT_SET_FAILED,
-                        "%s: Failed to set dictionary value for %s",
-                        uuid_utoa (fd->inode->gfid), GLUSTERFS_OPEN_FD_COUNT);
-        }
-
-        ret = dict_set_uint32 (rsp_xdata, GLUSTERFS_WRITE_IS_APPEND,
-                               is_append);
-        if (ret < 0) {
-                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DICT_SET_FAILED,
-                        "%s: Failed to set dictionary value for %s",
-                        uuid_utoa (fd->inode->gfid),
-                        GLUSTERFS_WRITE_IS_APPEND);
-        }
-out:
-        return rsp_xdata;
-}
-
-int32_t
-posix_writev (call_frame_t *frame, xlator_t *this, fd_t *fd,
-              struct iovec *vector, int32_t count, off_t offset,
-              uint32_t flags, struct iobref *iobref, dict_t *xdata)
-{
-        int32_t                op_ret   = -1;
-        int32_t                op_errno = 0;
-        int                    _fd      = -1;
-        struct posix_private * priv     = NULL;
-        struct posix_fd *      pfd      = NULL;
-        struct iatt            preop    = {0,};
-        struct iatt            postop    = {0,};
-        int                      ret      = -1;
-        dict_t                *rsp_xdata = NULL;
-	int                    is_append = 0;
-	gf_boolean_t           locked = _gf_false;
-	gf_boolean_t           write_append = _gf_false;
-	gf_boolean_t           update_atomic = _gf_false;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (fd, out);
-        VALIDATE_OR_GOTO (vector, out);
-        VALIDATE_OR_GOTO (this->private, out);
-
-        priv = this->private;
-
-        VALIDATE_OR_GOTO (priv, out);
-
-        ret = posix_fd_ctx_get (fd, this, &pfd);
-        if (ret < 0) {
-                gf_msg (this->name, GF_LOG_WARNING, ret, P_MSG_PFD_NULL,
-                        "pfd is NULL from fd=%p", fd);
-                op_errno = -ret;
-                goto out;
-        }
-
-        _fd = pfd->fd;
-
-        if (xdata) {
-                if (dict_get (xdata, GLUSTERFS_WRITE_IS_APPEND))
-                        write_append = _gf_true;
-                if (dict_get (xdata, GLUSTERFS_WRITE_UPDATE_ATOMIC))
-                        update_atomic = _gf_true;
-	}
-
-        /* The write_is_append check and write must happen
-           atomically. Else another write can overtake this
-           write after the check and get written earlier.
-
-           So lock before preop-stat and unlock after write.
-        */
-
-        /*
-         * The update_atomic option is to instruct posix to do prestat,
-         * write and poststat atomically. This is to prevent any modification to
-         * ia_size and ia_blocks until poststat and the diff in their values
-         * between pre and poststat could be of use for some translators (shard
-         * as of today).
-         */
-
-        if (write_append || update_atomic) {
-		locked = _gf_true;
-		LOCK(&fd->inode->lock);
-        }
-
-        op_ret = posix_fdstat (this, _fd, &preop);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_FSTAT_FAILED,
-                        "pre-operation fstat failed on fd=%p", fd);
-                goto out;
-        }
-
-	if (locked && write_append) {
-		if (preop.ia_size == offset || (fd->flags & O_APPEND))
-			is_append = 1;
-	}
-
-        op_ret = __posix_writev (_fd, vector, count, offset,
-                                 (pfd->flags & O_DIRECT));
-
-	if (locked && (!update_atomic)) {
-		UNLOCK (&fd->inode->lock);
-		locked = _gf_false;
-	}
-
-        if (op_ret < 0) {
-                op_errno = -op_ret;
-                op_ret = -1;
-                gf_msg (this->name, GF_LOG_ERROR, op_errno, P_MSG_WRITE_FAILED,
-                        "write failed: offset %"PRIu64
-                        ",", offset);
-                goto out;
-        }
-
-        rsp_xdata = _fill_writev_xdata (fd, xdata, this, is_append);
-        /* writev successful, we also need to get the stat of
-         * the file we wrote to
-         */
-
-        ret = posix_fdstat (this, _fd, &postop);
-        if (ret == -1) {
-                op_ret = -1;
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno,
-                        P_MSG_FSTAT_FAILED,
-                        "post-operation fstat failed on fd=%p",
-                        fd);
-                goto out;
-        }
-
-	if (locked) {
-		UNLOCK (&fd->inode->lock);
-		locked = _gf_false;
-	}
-
-        if (flags & (O_SYNC|O_DSYNC)) {
-                ret = fsync (_fd);
-                if (ret) {
-                        gf_msg (this->name, GF_LOG_ERROR, errno,
-                                P_MSG_WRITEV_FAILED,
-                                "fsync() in writev on fd %d failed",
-                                _fd);
-                        op_ret = -1;
-                        op_errno = errno;
-                        goto out;
-                }
-        }
-
-        LOCK (&priv->lock);
-        {
-                priv->write_value    += op_ret;
-        }
-        UNLOCK (&priv->lock);
-
-out:
-
-	if (locked) {
-		UNLOCK (&fd->inode->lock);
-		locked = _gf_false;
-	}
-
-        STACK_UNWIND_STRICT (writev, frame, op_ret, op_errno, &preop, &postop,
-                             rsp_xdata);
-
-        if (rsp_xdata)
-                dict_unref (rsp_xdata);
-        return 0;
-}
-
-
-int32_t
-posix_statfs (call_frame_t *frame, xlator_t *this,
-              loc_t *loc, dict_t *xdata)
-{
-        char *                 real_path = NULL;
-        int32_t                op_ret    = -1;
-        int32_t                op_errno  = 0;
-        struct statvfs         buf       = {0, };
-        struct posix_private * priv      = NULL;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (loc, out);
-        VALIDATE_OR_GOTO (this->private, out);
-
-        MAKE_INODE_HANDLE (real_path, this, loc, NULL);
-        if (!real_path) {
-                op_ret = -1;
-                op_errno = ESTALE;
-                goto out;
-        }
-
-        priv = this->private;
-
-        op_ret = statvfs (real_path, &buf);
-
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_ERROR, errno, P_MSG_STATVFS_FAILED,
-                        "statvfs failed on %s", real_path);
-                goto out;
-        }
-
-        if (!priv->export_statfs) {
-                buf.f_blocks = 0;
-                buf.f_bfree  = 0;
-                buf.f_bavail = 0;
-                buf.f_files  = 0;
-                buf.f_ffree  = 0;
-                buf.f_favail = 0;
-        }
-
-        op_ret = 0;
-
-out:
-        STACK_UNWIND_STRICT (statfs, frame, op_ret, op_errno, &buf, NULL);
-        return 0;
-}
-
-
-int32_t
-posix_flush (call_frame_t *frame, xlator_t *this,
-             fd_t *fd, dict_t *xdata)
-{
-        int32_t           op_ret   = -1;
-        int32_t           op_errno = 0;
-        int               ret      = -1;
-        struct posix_fd  *pfd      = NULL;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (fd, out);
-
-        ret = posix_fd_ctx_get (fd, this, &pfd);
-        if (ret < 0) {
-                op_errno = -ret;
-                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
-                        "pfd is NULL on fd=%p", fd);
-                goto out;
-        }
-
-        op_ret = 0;
-
-out:
-        STACK_UNWIND_STRICT (flush, frame, op_ret, op_errno, NULL);
-
-        return 0;
-}
-
-
-int32_t
-posix_release (xlator_t *this, fd_t *fd)
-{
-        struct posix_private * priv     = NULL;
-        struct posix_fd *      pfd      = NULL;
-        int                    ret      = -1;
-        uint64_t               tmp_pfd  = 0;
-
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (fd, out);
-
-        priv = this->private;
-
-        ret = fd_ctx_del (fd, this, &tmp_pfd);
-        if (ret < 0) {
-                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_PFD_NULL,
-                        "pfd is NULL from fd=%p", fd);
-                goto out;
-        }
-        pfd = (struct posix_fd *)(long)tmp_pfd;
-
-        if (pfd->dir) {
-                gf_msg (this->name, GF_LOG_WARNING, 0, P_MSG_DIR_NOT_NULL,
-                        "pfd->dir is %p (not NULL) for file fd=%p",
-                        pfd->dir, fd);
-        }
-
-        pthread_mutex_lock (&priv->janitor_lock);
-        {
-                INIT_LIST_HEAD (&pfd->list);
-                list_add_tail (&pfd->list, &priv->janitor_fds);
-                pthread_cond_signal (&priv->janitor_cond);
-        }
-        pthread_mutex_unlock (&priv->janitor_lock);
-
-        LOCK (&priv->lock);
-        {
-                priv->nr_files--;
-        }
-        UNLOCK (&priv->lock);
-
-out:
-        return 0;
-}
-
-
-int
-posix_batch_fsync (call_frame_t *frame, xlator_t *this,
-		     fd_t *fd, int datasync, dict_t *xdata)
-{
-	call_stub_t *stub = NULL;
-	struct posix_private *priv = NULL;
-
-	priv = this->private;
-
-	stub = fop_fsync_stub (frame, default_fsync, fd, datasync, xdata);
-	if (!stub) {
-		STACK_UNWIND_STRICT (fsync, frame, -1, ENOMEM, 0, 0, 0);
-		return 0;
-	}
-
-	pthread_mutex_lock (&priv->fsync_mutex);
-	{
-		list_add_tail (&stub->list, &priv->fsyncs);
-		priv->fsync_queue_count++;
-		pthread_cond_signal (&priv->fsync_cond);
-	}
-	pthread_mutex_unlock (&priv->fsync_mutex);
-
-	return 0;
-}
-
-
-int32_t
-posix_fsync (call_frame_t *frame, xlator_t *this,
-             fd_t *fd, int32_t datasync, dict_t *xdata)
-{
-        int32_t           op_ret   = -1;
-        int32_t           op_errno = 0;
-        int               _fd      = -1;
-        struct posix_fd * pfd      = NULL;
-        int               ret      = -1;
-        struct iatt       preop = {0,};
-        struct iatt       postop = {0,};
-        struct posix_private *priv = NULL;
-
-        DECLARE_OLD_FS_ID_VAR;
-
-        VALIDATE_OR_GOTO (frame, out);
-        VALIDATE_OR_GOTO (this, out);
-        VALIDATE_OR_GOTO (fd, out);
-
-        SET_FS_ID (frame->root->uid, frame->root->gid);
-
-#ifdef GF_DARWIN_HOST_OS
-        /* Always return success in case of fsync in MAC OS X */
-        op_ret = 0;
-        goto out;
-#endif
-
-	priv = this->private;
-	if (priv->batch_fsync_mode && xdata && dict_get (xdata, "batch-fsync")) {
-		posix_batch_fsync (frame, this, fd, datasync, xdata);
-		return 0;
-	}
-
-        ret = posix_fd_ctx_get (fd, this, &pfd);
-        if (ret < 0) {
-                op_errno = -ret;
-                gf_msg (this->name, GF_LOG_WARNING, op_errno, P_MSG_PFD_NULL,
-                        "pfd not found in fd's ctx");
-                goto out;
-        }
-
-        _fd = pfd->fd;
-
-        op_ret = posix_fdstat (this, _fd, &preop);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_WARNING, errno, P_MSG_FSTAT_FAILED,
-                        "pre-operation fstat failed on fd=%p", fd);
-                goto out;
-        }
-
-        if (datasync) {
-                op_ret = sys_fdatasync (_fd);
-                if (op_ret == -1) {
-                        op_errno = errno;
-                        gf_msg (this->name, GF_LOG_ERROR, errno,
-                                P_MSG_FSYNC_FAILED, "fdatasync on fd=%p"
-                                "failed:", fd);
-                        goto out;
-                }
-        } else {
-                op_ret = sys_fsync (_fd);
-                if (op_ret == -1) {
-                        op_errno = errno;
-                        gf_msg (this->name, GF_LOG_ERROR, errno,
-                                P_MSG_FSYNC_FAILED, "fsync on fd=%p "
-                                "failed", fd);
-                        goto out;
-                }
-        }
-
-        op_ret = posix_fdstat (this, _fd, &postop);
-        if (op_ret == -1) {
-                op_errno = errno;
-                gf_msg (this->name, GF_LOG_WARNING, errno, P_MSG_FSTAT_FAILED,
-                        "post-operation fstat failed on fd=%p", fd);
-                goto out;
-        }
-
-        op_ret = 0;
-
-out:
-        SET_TO_OLD_FS_ID ();
-
-        STACK_UNWIND_STRICT (fsync, frame, op_ret, op_errno, &preop, &postop,
-                             NULL);
 
         return 0;
 }
@@ -5716,40 +5597,6 @@ posix_readdirp (call_frame_t *frame, xlator_t *this,
 }
 
 int32_t
-posix_priv (xlator_t *this)
-{
-        struct posix_private *priv = NULL;
-        char  key_prefix[GF_DUMP_MAX_BUF_LEN];
-
-        snprintf(key_prefix, GF_DUMP_MAX_BUF_LEN, "%s.%s", this->type,
-                 this->name);
-        gf_proc_dump_add_section(key_prefix);
-
-        if (!this)
-                return 0;
-
-        priv = this->private;
-
-        if (!priv)
-                return 0;
-
-        gf_proc_dump_write("base_path","%s", priv->base_path);
-        gf_proc_dump_write("base_path_length","%d", priv->base_path_length);
-        gf_proc_dump_write("max_read","%d", priv->read_value);
-        gf_proc_dump_write("max_write","%d", priv->write_value);
-        gf_proc_dump_write("nr_files","%ld", priv->nr_files);
-
-        return 0;
-}
-
-int32_t
-posix_inode (xlator_t *this)
-{
-        return 0;
-}
-
-
-int32_t
 posix_rchecksum (call_frame_t *frame, xlator_t *this,
                  fd_t *fd, off_t offset, int32_t len, dict_t *xdata)
 {
@@ -5820,7 +5667,40 @@ out:
 
         return 0;
 }
+#endif /* NOT_YET */
 
+int32_t
+posix_priv (xlator_t *this)
+{
+        struct posix_private *priv = NULL;
+        char  key_prefix[GF_DUMP_MAX_BUF_LEN];
+
+        snprintf(key_prefix, GF_DUMP_MAX_BUF_LEN, "%s.%s", this->type,
+                 this->name);
+        gf_proc_dump_add_section(key_prefix);
+
+        if (!this)
+                return 0;
+
+        priv = this->private;
+
+        if (!priv)
+                return 0;
+
+        gf_proc_dump_write("base_path","%s", priv->base_path);
+        gf_proc_dump_write("base_path_length","%d", priv->base_path_length);
+        gf_proc_dump_write("max_read","%d", priv->read_value);
+        gf_proc_dump_write("max_write","%d", priv->write_value);
+        gf_proc_dump_write("nr_files","%ld", priv->nr_files);
+
+        return 0;
+}
+
+int32_t
+posix_inode (xlator_t *this)
+{
+        return 0;
+}
 
 /**
  * notify - when parent sends PARENT_UP, send CHILD_UP event from here
@@ -5936,7 +5816,7 @@ int
 reconfigure (xlator_t *this, dict_t *options)
 {
 	int                   ret = -1;
-struct posix_private *priv = NULL;
+        struct posix_private *priv = NULL;
         int32_t               uid = -1;
         int32_t               gid = -1;
 	char                 *batch_fsync_mode_str = NULL;
@@ -5979,11 +5859,6 @@ struct posix_private *priv = NULL;
 	GF_OPTION_RECONF ("linux-aio", priv->aio_configured,
 			  options, bool, out);
 
-	if (priv->aio_configured)
-		posix_aio_on (this);
-	else
-		posix_aio_off (this);
-
         GF_OPTION_RECONF ("update-link-count-parent", priv->update_pgfid_nlinks,
                           options, bool, out);
 
@@ -5999,7 +5874,6 @@ struct posix_private *priv = NULL;
 
         GF_OPTION_RECONF ("health-check-interval", priv->health_check_interval,
                           options, uint32, out);
-        posix_spawn_health_check_thread (this);
 
 	ret = 0;
 out:
@@ -6401,7 +6275,7 @@ init (xlator_t *this)
 #endif
         this->private = (void *)_private;
 
-        op_ret = posix_handle_init (this);
+//***        op_ret = posix_handle_init (this);
         if (op_ret == -1) {
                 gf_msg (this->name, GF_LOG_ERROR, 0, P_MSG_HANDLE_CREATE,
                         "Posix handle setup failed");
@@ -6409,7 +6283,7 @@ init (xlator_t *this)
                 goto out;
         }
 
-        op_ret = posix_handle_trash_init (this);
+//***        op_ret = posix_handle_trash_init (this);
         if (op_ret < 0) {
                 gf_msg (this->name, GF_LOG_ERROR, 0, P_MSG_HANDLE_CREATE_TRASH,
                         "Posix landfill setup failed");
@@ -6427,17 +6301,6 @@ init (xlator_t *this)
 
 	GF_OPTION_INIT ("linux-aio", _private->aio_configured, bool, out);
 
-	if (_private->aio_configured) {
-		op_ret = posix_aio_on (this);
-
-		if (op_ret == -1) {
-			gf_msg (this->name, GF_LOG_ERROR, 0, P_MSG_POSIX_AIO,
-				"Posix AIO init failed");
-			ret = -1;
-			goto out;
-		}
-	}
-
         GF_OPTION_INIT ("node-uuid-pathinfo",
                         _private->node_uuid_pathinfo, bool, out);
         if (_private->node_uuid_pathinfo &&
@@ -6450,8 +6313,6 @@ init (xlator_t *this)
         _private->health_check_active = _gf_false;
         GF_OPTION_INIT ("health-check-interval",
                         _private->health_check_interval, uint32, out);
-        if (_private->health_check_interval)
-                posix_spawn_health_check_thread (this);
 
         pthread_mutex_init (&_private->janitor_lock, NULL);
         pthread_cond_init (&_private->janitor_cond, NULL);
@@ -6523,42 +6384,42 @@ struct xlator_fops fops = {
         .lookup      = posix_lookup,
         .stat        = posix_stat,
         .opendir     = posix_opendir,
-        .readdir     = posix_readdir,
-        .readdirp    = posix_readdirp,
+//        .readdir     = posix_readdir,
+//        .readdirp    = posix_readdirp,
         .readlink    = posix_readlink,
-        .mknod       = posix_mknod,
-        .mkdir       = posix_mkdir,
-        .unlink      = posix_unlink,
-        .rmdir       = posix_rmdir,
-        .symlink     = posix_symlink,
-        .rename      = posix_rename,
-        .link        = posix_link,
+//        .mknod       = posix_mknod,
+//        .mkdir       = posix_mkdir,
+//        .unlink      = posix_unlink,
+//        .rmdir       = posix_rmdir,
+//        .symlink     = posix_symlink,
+//        .rename      = posix_rename,
+//        .link        = posix_link,
         .truncate    = posix_truncate,
-        .create      = posix_create,
+//        .create      = posix_create,
         .open        = posix_open,
         .readv       = posix_readv,
         .writev      = posix_writev,
         .statfs      = posix_statfs,
         .flush       = posix_flush,
         .fsync       = posix_fsync,
-        .setxattr    = posix_setxattr,
-        .fsetxattr   = posix_fsetxattr,
-        .getxattr    = posix_getxattr,
-        .fgetxattr   = posix_fgetxattr,
-        .removexattr = posix_removexattr,
-        .fremovexattr = posix_fremovexattr,
-        .fsyncdir    = posix_fsyncdir,
-        .access      = posix_access,
-        .ftruncate   = posix_ftruncate,
-        .fstat       = posix_fstat,
-        .lk          = posix_lk,
-        .inodelk     = posix_inodelk,
-        .finodelk    = posix_finodelk,
-        .entrylk     = posix_entrylk,
-        .fentrylk    = posix_fentrylk,
-        .rchecksum   = posix_rchecksum,
-        .xattrop     = posix_xattrop,
-        .fxattrop    = posix_fxattrop,
+//        .setxattr    = posix_setxattr,
+//        .fsetxattr   = posix_fsetxattr,
+//        .getxattr    = posix_getxattr,
+//        .fgetxattr   = posix_fgetxattr,
+//        .removexattr = posix_removexattr,
+//        .fremovexattr = posix_fremovexattr,
+//        .fsyncdir    = posix_fsyncdir,
+//        .access      = posix_access,
+//        .ftruncate   = posix_ftruncate,
+//        .fstat       = posix_fstat,
+//        .lk          = posix_lk,
+//        .inodelk     = posix_inodelk,
+//        .finodelk    = posix_finodelk,
+//        .entrylk     = posix_entrylk,
+//        .fentrylk    = posix_fentrylk,
+//        .rchecksum   = posix_rchecksum,
+//        .xattrop     = posix_xattrop,
+//        .fxattrop    = posix_fxattrop,
         .setattr     = posix_setattr,
         .fsetattr    = posix_fsetattr,
 	.fallocate   = _posix_fallocate,
