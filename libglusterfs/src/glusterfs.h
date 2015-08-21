@@ -235,6 +235,9 @@
 #define DHT_SKIP_OPEN_FD_UNLINK     "dont-unlink-for-open-fd"
 #define DHT_IATT_IN_XDATA_KEY       "dht-get-iatt-in-xattr"
 
+/* DHT2 related xdata strings */
+#define DHT2_DENTRY_OP          "dht2-dentry-op"
+
 /*CTR requires inode dentry link count from posix*/
 #define CTR_RESPONSE_LINK_COUNT_XDATA "ctr_response_link_count"
 #define CTR_REQUEST_LINK_COUNT_XDATA  "ctr_request_link_count"
