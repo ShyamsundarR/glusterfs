@@ -91,6 +91,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_69f8224a",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T17:42:20Z",
+      "side": 1,
+      "message": "Let me give this a thought. As of now looks like state maintenance and I\u0027m almost asleep ;)",
+      "parentUuid": "9ad9bd40_89ed6691",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
