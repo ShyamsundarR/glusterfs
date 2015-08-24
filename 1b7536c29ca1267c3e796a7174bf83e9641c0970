@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_ae995021",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-08-24T14:20:15Z",
+      "side": 1,
+      "message": "Venky, this is a good question/observation and here are my thoughts.\n\n- I think the fd should be opened at the MDS, as we need to do access checks before allowing the fd to be opened.\n  - Or, rather at the file inode location (so that the statement is true for P1 and P2 related designs)\n- Hence the open fd is just a gateway to the DS which treats this as an \u0027authoritative\u0027 source to allow data operations on the DS side\n  - P1 this is the same location, P2 it is the DS side of affairs.\n- This \u0027authority\u0027 should be provided somehow, signed blob, that the DS can verify as authoritative? Not sure yet...\n\nThis also opens up another area to think through, performance of small files,\n- There are 2 cases here, \n  - open/creat -\u003e read/write\n  - anonFD cases for [creat -\u003e] read/write\n\nIn short what is the # of RPCs that we need to achieve the case of small file creation (including data write) and how does that stack up with older DHT. I think the key is in map/extent/layout manipulation which could cause additional RPC traffic than the current case. Also, I think this is a P2 problem.",
+      "parentUuid": "9ad9bd40_b04e0f95",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
@@ -47,6 +65,24 @@
       "writtenOn": "2015-08-24T06:33:09Z",
       "side": 1,
       "message": "Maintain two implementations of posix: posix-ds, posix-mds. I think there would be lots of common code between them except the actual FOP each instance implements.",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ad9bd40_a9030a0c",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 200,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-08-24T14:20:15Z",
+      "side": 1,
+      "message": "That is one way, in which case DHT2 decides which way to route the 2 requests, in which case DHT2 can also pass this information through an xdata name-value pair. Basically, I still need to break the logjam on how the client decides and hence what information it sends down the 2 creation FOPs.\n\nI agree that separating the 2 POSIX implementation (with the large amount common code) is something that seems to make sense.\n\nAlso in P2, this creation is a single FOP, as we create the inode and name on the same subvol (unless it is a link call). Hence at that point this confusion may disappear.",
+      "parentUuid": "9ad9bd40_534a2d56",
       "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
