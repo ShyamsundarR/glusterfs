@@ -37,6 +37,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_a9e14ad2",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T15:45:53Z",
+      "side": 1,
+      "message": "If the fd is open()\u0027d _only_ in the MDS, that would break a client reading an object (open fd) in the mid of the object getting unlink()\u0027d. I guess, there needs to be an active fd reference in the DS too. One could still implement similar semantics by using some form of reference counting, but that looks like an added load.",
+      "parentUuid": "9ad9bd40_ae995021",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
