@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ad9bd40_b04e0f95",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T06:33:09Z",
+      "side": 1,
+      "message": "Where does this FD point to? My first guess would be DS. But to implement calls like fstat() where the information needs to be fetched from the MDS (post phase I).\n\nFurthermore, it would be good to churn out open() call and the relevant structures that are maintained in DS/MDS.\n\n[\n    There is some mention about open{dir} in the initial DHT2    \n    prototype design, I\u0027ll probably read that again.\n]",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ad9bd40_733011e9",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 193,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T06:33:09Z",
+      "side": 1,
+      "message": "I thought this will be in the first prototype :P",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ad9bd40_534a2d56",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 200,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T06:33:09Z",
+      "side": 1,
+      "message": "Maintain two implementations of posix: posix-ds, posix-mds. I think there would be lots of common code between them except the actual FOP each instance implements.",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
