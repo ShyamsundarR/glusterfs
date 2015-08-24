@@ -55,6 +55,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_2950da5d",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-24T16:30:35Z",
+      "side": 1,
+      "message": "Just to be elaborate here, access checks would be done at the MDS, but the actual fd still needs to be open()\u0027d on the DS. There also needs to be an fd on the MDS for metadata updations (size, {a,c,m}time, etc..) so that the metadata can still be updated when permission are changed _after_ an fd was open()\u0027d on the object.\n\nThoughts, anyone?",
+      "parentUuid": "9ad9bd40_a9e14ad2",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
