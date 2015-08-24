@@ -73,6 +73,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_89ed6691",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-08-24T17:13:29Z",
+      "side": 1,
+      "message": "My thought:\n\nIf inode and data are separate (i.e P2), then we just need the fd open against the MDS or inode. unlink would remove the name from the directory inode without any checks. The inode itself would be \u0027unlinked\u0027 only when active ref to it becomes 0 (i.e no open fd\u0027s).\n\nWhen the inode is unlinked that is when the data is unliked/freed as well. So in essence data unlinking (at the DS) is when inode is unlinked, and that is what protects data/DS without needing an open fd/ref against the DS to be present.\n\nWhen a file is unliked, we need to mark the inode ready for garbage collection once all refs to it are removed. This \u0027mark\u0027 should survive reboots, so that inode leaks are prevented.\n\nA mark on the inode (i.e on disk) when it is unlinked is one way to achieve this persistence information, but how would the FS realize this inode is ready for unlinking on a reboot would then be the problem. For the second part some form of journal or something like indices (if I am not wrong) would need to be used.\n\nThe mark should also serve as a data point for future opens against the inode (i.e GFID based access) to fail, as it is marked for unlink, and hence retained as a part of the in-memory inode information on the brick.\n\nFurther, inode with link counts greater than one will not get unlinked till the last name ref is removed (just stating for completeness).",
+      "parentUuid": "9ad9bd40_2950da5d",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
