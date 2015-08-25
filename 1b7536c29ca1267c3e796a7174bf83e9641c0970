@@ -109,6 +109,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_3fe64845",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-25T06:23:10Z",
+      "side": 1,
+      "message": "This implies that operations on the DS side of things are based on anonymous fds, correct? I have no objections to that other than the performance impact of large number of small writes on an object.\n\nI understand the need for just doing an open() just on the MDS, but as you said performance impact of fd operations (on the DS) need to thought of.",
+      "parentUuid": "9ad9bd40_89ed6691",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
