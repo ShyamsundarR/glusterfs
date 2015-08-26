@@ -127,6 +127,24 @@
     },
     {
       "key": {
+        "uuid": "9ad9bd40_8ffba146",
+        "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
+        "patchSetId": 1
+      },
+      "lineNbr": 126,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-08-26T06:42:28Z",
+      "side": 1,
+      "message": "[Jotting down notes as a comment]\n\nfd needs to be open() on the DS side too. We still need the object inode to be garbage collected on unlink() _after_ last fd close() and last link count.\n\nMoreover, open() on the DS can be deferred until the first data op. Need to think about this open() failing: should the fop be failed?",
+      "parentUuid": "9ad9bd40_3fe64845",
+      "revId": "1b7536c29ca1267c3e796a7174bf83e9641c0970",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "9ad9bd40_733011e9",
         "filename": "xlators/cluster/dht2/docs/POSIX_FunctionalSpec.md",
         "patchSetId": 1
