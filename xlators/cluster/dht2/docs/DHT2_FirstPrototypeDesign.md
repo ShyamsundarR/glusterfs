@@ -20,16 +20,16 @@ the underlying filesystem, as presented to Gluster for its store.
 
 ### MetaDataServer (MDS):
 1. Consolidated file system view across all MDS bricks
-  /0x00/0x00/0x00000001/ (Gluster root inode)
+        - /0x00/0x00/0x00000001/ (Gluster root inode)
               - Dir1  (GFID: 0xDD000001)
               - Dir2  (GFID: 0xDD000002)
               - File1 (GFID: 0xFF000001)
-  /0xDD/0x00/0xDD000001/ (Dir1)
+        - /0xDD/0x00/0xDD000001/ (Dir1)
               - File2 (GFID: 0xFF000002)
               - Dir3  (GFID: 0xDD000003)
-  /0xDD/0x00/0xDD000002/ (Dir2)
+        - /0xDD/0x00/0xDD000002/ (Dir2)
               - File3 (GFID: 0xFF000003)
-  /0xDD/0x00/0xDD000003/ (Dir3)
+        - /0xDD/0x00/0xDD000003/ (Dir3)
 
   NOTE: Values in round brackets above, is either informational or stored as
   extended attributes on the file or directory object as its meta data
@@ -56,9 +56,9 @@ the underlying filesystem, as presented to Gluster for its store.
 
 ### DataServer (DS):
 1. Consolidated view across all DS bricks
-  /0xFF/0x00/0xFF000001
-  /0xFF/0x00/0xFF000002
-  /0xFF/0x00/0xFF000003
+        - /0xFF/0x00/0xFF000001
+        - /0xFF/0x00/0xFF000002
+        - /0xFF/0x00/0xFF000003
 
 2. Object types in DS
   - Gluster File inode
@@ -83,7 +83,7 @@ that helps reduce data motion in the even of cluster exapnsion or contraction.
 - To begin with the layout range is divided into equal number of parts, as
   there are subvolumes on the MDS or DS side of the DHT2 volume graph
 
-<TBD> ## Virtual file system construction by DHT2 on the client
+## Virtual file system construction by DHT2 on the client
 Root inode has a special reserved GFID, which is 0x00000001 (shortened form).
 As a result looking up root is done by the client side DHT xlator based
 on rootGFID hash.
@@ -96,11 +96,12 @@ table on the client to provide the file system view.
 ### Limitations in initial implementation
 A. We do not consider rebalance, hence nothing is out of balance and in
   the right place always
+
 B. We need to determine order of operations when doing composite operations,
   like create, unlink
   - Meaning, what is created first the inode or the name entry on the parent
   - What is unlinked first
-  * We should be able to find some useful patterns when looking at other local
+  - We should be able to find some useful patterns when looking at other local
     file system implementations for the same
 
 ### lookup
@@ -121,8 +122,8 @@ B. We need to determine order of operations when doing composite operations,
     - Failure
       - [A] pevents any other possibility other than ENOENT
       - return ENOENT
-  - Nameless lookup (gfid) (can be a file or a directory,
-                                need to search in both spaces)
+  - Nameless lookup (gfid) (can be a file or a directory, need to search in
+  both spaces)
     - subvols[1] = layout_search (mds, gfid)
     - subvols [2] = layout_search (ds, gfid)
     - lookup (subvols, gfid)
@@ -132,8 +133,8 @@ B. We need to determine order of operations when doing composite operations,
     - Failure
       - if found on both, then critical error
       - if not found anywhere, return ESTALE
-        - Again due to not considering [A] we do not need to
-                lookup everywhere on a failure
+        - Again due to not considering [A] we do not need to lookup everywhere
+        on a failure
 
 ### stat
   - subvol = layout_search (inode->type? mds : ds, gfid) || inode->subvol
@@ -245,6 +246,7 @@ B. We need to determine order of operations when doing composite operations,
   be using XFS project quota like ideas in Gluster, see
     - http://oss.sgi.com/projects/xfs/papers/xfs_filesystem_structure.pdf
       - See, "Internal inodes" -> "Quota inodes"
+    - http://xfs.org/docs/xfsdocs-xml-dev/XFS_User_Guide/tmp/en-US/html/xfs-quotas.html
 3. lookup also translates into a 2 network RPC FOP, and needs improvement
 
 ## Appendix A: Directory as a file at the POSIX layer
