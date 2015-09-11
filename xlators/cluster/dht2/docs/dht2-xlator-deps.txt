@@ -1,0 +1,33 @@
+DHT2 Translator Dependencies
+----------------------------
+
+This document captures various dependencies of translators (+daemons) in
+GlusterFS that rely of DHTs behaviour directly or indirectly. With the
+introduction of MDS and DS split alongside directories spread across
+MDSs, components that depend on old DHT behaviour would need to accomodate
+with DHT2.
+
+NOTE: Points captured in this document are one lines and not explained in
+      deatil: that would be done over time. In case of any confusing please
+      drop a mail to gluster-devel@gluster.org for any clarification or
+      explanation regarding the dependencies mentioned in this document.
+
+Geo-replication
+  - Two (or three) step replication
+    * entry
+    * data
+    * metadata
+  - Gsyncd on *all* node (DS + MDS)
+    * DS synchronization needs to "wait" for entry synchonization
+    * singleton stime on root
+    * Due to directories spread among all MDS's, there might be
+      ordering requirements b/w gsyncd running on MDS's
+        - Might have a different approach where we create a dangling
+          inode and later let the entry catch up
+        - rmdir() operations are auto-ordered: since there is less
+          relation b/w parent and child at the MDS
+        - Data synchronization can proceed even if the corresponding
+          entry was not synchronized if inode is synchronized first
+          (later the entry "attaches" with the inode and completes the
+          namespace).
+
