@@ -16,7 +16,8 @@
  * please.
  */
 
-int32_t posix2_lookup_is_nameless (loc_t *loc)
+int32_t
+posix2_lookup_is_nameless (loc_t *loc)
 {
         return (gf_uuid_is_null (loc->pargfid) && !loc->name);
 }
