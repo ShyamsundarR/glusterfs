@@ -33,7 +33,7 @@ static struct posix2_mdstore_handler posix2_mdslist[] = {
         {
                 .ctor     = xattrstore_ctor,
                 .dtor     = xattrstore_dtor,
-                .storeops = NULL,
+                .storeops = &xattrstore_fops,
         },
 };
 
@@ -60,6 +60,9 @@ posix2_fill_mds (xlator_t *this, struct posix2_mds *mds, const char *export)
         /* find the appropriate MDS handler */
         handler = posix2_find_mds_handler (this);
         if (!handler)
+                goto dealloc_hostmem;
+        /* don't tolerate nuisance */
+        if (!handler->storeops)
                 goto dealloc_hostmem;
 
         /* Invoke constructor and set store */
@@ -121,6 +124,29 @@ init (xlator_t *this)
  error_return:
         return -1;
 }
+
+/**
+ * Regular file operations: someone should really write a code generator
+ * for this since this is pretty much bunch of invocations to the meta
+ * store. Don't look here for anything interesting.
+ */
+int32_t
+posix2_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->lookup)
+                return handle->storeops->lookup (frame, this, loc, xdata);
+
+        STACK_UNWIND_STRICT (lookup, frame, -1,
+                             ENOTSUP, NULL, NULL, NULL, NULL);
+        return 0;
+}
+
+struct xlator_fops fops = {
+        .lookup = posix2_lookup,
+};
 
 struct volume_options options[] = {
         {
