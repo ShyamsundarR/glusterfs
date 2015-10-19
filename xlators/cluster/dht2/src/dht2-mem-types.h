@@ -18,8 +18,10 @@
 #include "mem-types.h"
 
 enum gf_dht2_mem_types_ {
-        gf_dht2_mt_dht2_conf_t = gf_common_mt_end + 1,
-        gf_dht2_mt_end
+        gf_dht2_mt_conf_t = gf_common_mt_end + 1,
+        gf_dht2_mt_subvol_t,
+        gf_dht2_mt_layout_t,
+        gf_dht2_mt_end,
 };
 
 #endif /* _DHT2_MEM_TYPES_H_ */
