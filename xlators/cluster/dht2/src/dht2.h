@@ -12,16 +12,40 @@
  * Primary header for dht2 code.
  */
 
-#ifndef _DHT2_H
-#define _DHT2_H
+#ifndef _DHT2_H_
+#define _DHT2_H_
 
+#include "list.h"
+#include "locking.h"
+#include "dht2-layout.h"
 #include "dht2-mem-types.h"
 
-struct dht2_conf {
-        int     d2cnf_data_count;
-        int     d2cnf_mds_count;
+struct dht2_subvol {
+        xlator_t *this;
+
+        struct dht2_layout layout;
+
+        struct list_head list;
 };
 
-typedef struct dht2_conf dht2_conf_t;
+struct dht2_conf {
+        gf_lock_t lock;
+        void *dht2s;             /* alloced subvolume list, void type to prevent
+                                    unnecessary fiddling, use ->mds, ->ds */
 
-#endif /* _DHT2_H */
+        int mds_count;           /* metadata server count */
+        int data_count;          /* data server count */
+
+        struct list_head mds;    /* list of metadata server(s) */
+        struct list_head ds;     /* list of data server(s) */
+
+        struct dht2_layouthandler *layouthandler;
+};
+
+#define for_each_mds_entry(pos, conf)                   \
+        list_for_each_entry (pos, &conf->mds, list)
+
+#define for_each_ds_entry(pos, conf)                    \
+        list_for_each_entry (pos, &conf->ds, list)
+
+#endif /* _DHT2_H_ */
