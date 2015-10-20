@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_4f1288b5",
+        "filename": "xlators/cluster/dht2/src/dht2-layout.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-10-20T04:52:28Z",
+      "side": 1,
+      "message": "Ummm.. any reason why not use bucket ranges?",
+      "revId": "837c959ee6b136981b8f877f2047401b45fa5cab",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
