@@ -51,6 +51,24 @@
       "revId": "837c959ee6b136981b8f877f2047401b45fa5cab",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ab29df4_b83a8334",
+        "filename": "xlators/cluster/dht2/src/dht2-layout.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-10-21T16:38:46Z",
+      "side": 1,
+      "message": "Understood. Since this mechanism is just to get things going and nowhere final to what we stick to, I geared towards ease and quick implementation rather than anything else.\n\nAs you mentioned, a logarithmic complexity (tree) search would probably fit best and be memory efficient.",
+      "parentUuid": "9ab29df4_3d4bc5b1",
+      "revId": "837c959ee6b136981b8f877f2047401b45fa5cab",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
