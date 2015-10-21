@@ -1,7 +1,7 @@
 xlator_LTLIBRARIES = dht2.la
 xlatordir = $(libdir)/glusterfs/$(PACKAGE_VERSION)/xlator/cluster
 
-dht2_sources = dht2-main.c dht2-layout.c
+dht2_sources = dht2-main.c dht2-layout.c dht2-dir.c
 
 dht2_ext_sources = $(top_builddir)/xlators/lib/src/libxlator.c
 

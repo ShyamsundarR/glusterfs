@@ -224,6 +224,7 @@ class_methods_t class_methods = {
 };
 
 struct xlator_fops fops = {
+        .lookup = dht2_lookup,
 };
 
 struct xlator_cbks cbks = {

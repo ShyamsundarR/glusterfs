@@ -48,4 +48,6 @@ struct dht2_conf {
 #define for_each_ds_entry(pos, conf)                    \
         list_for_each_entry (pos, &conf->ds, list)
 
+int32_t dht2_lookup (call_frame_t *, xlator_t *, loc_t *, dict_t *);
+
 #endif /* _DHT2_H_ */
