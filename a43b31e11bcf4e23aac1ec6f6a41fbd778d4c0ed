@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_5826c7bb",
+        "filename": "xlators/cluster/dht2/src/dht2-layout.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 29,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-10-21T16:09:20Z",
+      "side": 1,
+      "message": "I do not have outright issue with this abstraction but some points to note,\n- I am not sure this is the interface to layouts that we need, as I do not have enough data to justify the same\n- The function pointer approach works when we have different layout handlers, so that part is useful as we shift other parts of the code around independent of the layout parts\n- I possibly see us having these interfaces ATM,\n  - fetching/get/init a layout\n    - Instead of prepare, we will ideally get a layout for the volume from somewhere and populate our layout appropriately.\n    - The question is do we *use* the conf to determine everything internal to this interface or not, or in args to this interface\n  - return/destroy/fini the fetched layout\n  - Search a layout given a key, to return a xlator\n    - in args to this function is also interesting, we use bucket ID or a number, in the future some other form could use a different in arg to help decide the same, hence a void * with the layout helps, as we can typecast it based on the layout type, which should be a part of the layout anyway.\n  - We will *not* update the layout, as that would be a separate fetch cycle, and we need to operate on *a* layout that we think is appropriate. (ideally this is something that happens with a graph switch?)\n\nso maybe we can look at the abstraction as,\n- dht2_layout_handler {\n    .d2layhandler_init (prepare)\n    .d2layhandler_fini (wreck)\n    .d2layhandler_search\n}",
+      "revId": "a43b31e11bcf4e23aac1ec6f6a41fbd778d4c0ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
