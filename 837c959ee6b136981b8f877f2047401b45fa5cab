@@ -33,6 +33,24 @@
       "revId": "837c959ee6b136981b8f877f2047401b45fa5cab",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ab29df4_3d4bc5b1",
+        "filename": "xlators/cluster/dht2/src/dht2-layout.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-10-21T16:19:17Z",
+      "side": 1,
+      "message": "The reason is to keep the bucket search O(1) and nothing else.\n\nEven in the future, whatever the data structure, we have a bucket index, and a data structure to search, which would be a frequent operation. To aid this I am utilizing an array so that we just return the subvol at the index.\n\nThis is memory intensive at the cost of O(1) search. The memory though can be justified I assume, array of pointers, 8 * 65536 \u003d 512KiB\n\nRanges:\nIn the future a subvol could have multiple ranges, due to rebalance or assignment of different buckets to different subvols that are not contigous. In this scenario, the range mechanism does not work.\n\nA BalancedSTree approach can work for the ranges that are memory efficient and also search efficient. I.e if we start at root and search using the bucket ID, we should end in a leaf that has a (subvol, range) where, the subvol is true for that range. That way tree height (and hence search iterations) are controlled, and space is saved whenever subvols have a range of buckets that they serve.\n\nOverall I would still lean towards the O(1) array for the buckets as we spend 1MiB in space per layout, which is not that costly.",
+      "parentUuid": "9ab29df4_4f1288b5",
+      "revId": "837c959ee6b136981b8f877f2047401b45fa5cab",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
