@@ -16,6 +16,24 @@
       "revId": "a43b31e11bcf4e23aac1ec6f6a41fbd778d4c0ed",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ab29df4_1ef2779a",
+        "filename": "xlators/cluster/dht2/src/dht2-layout.h",
+        "patchSetId": 3
+      },
+      "lineNbr": 29,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-10-22T08:12:46Z",
+      "side": 1,
+      "message": "Shyam,\n\nYou\u0027re correct when you say that normally a layout is fetched from somewhere (MDS/DS export). Therefore, -\u003elayoutprepare() would be used to setup some prefetch information, e.g., in fixed bucket layout implementation this is used to initialize (lstart, lrange). This is basically implementation dependent and IMO a form of programming paradigm to some extent thereby moving the actual layout generation (or fetching) to -\u003elayoutgen.\n\nThe flow in this case makes things much more clear:\n\n-\u003elayoutprepare()\n-\u003elayoutgen()\n-\u003elayoutwreck()\n\n......\n......\n......\n\nand later when you want to find the appropriate subvolume use -\u003elayoutsearch().\n\n-\u003elayoutwreck() just deallocated whatever was allocated in -\u003elayoutpreare(). The actual layout stored elsewhere (inode context, subvolume list, etc..) would be deallocated when that particular instance is about to go away. Also, layout handlers are free to have some of the above functions as no-op. Therefore, the above abstraction.",
+      "parentUuid": "9ab29df4_5826c7bb",
+      "revId": "a43b31e11bcf4e23aac1ec6f6a41fbd778d4c0ed",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
