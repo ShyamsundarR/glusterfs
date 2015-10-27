@@ -19,6 +19,22 @@
 #include "dht2-helpers.h"
 #include "dht2-layout.h"
 
+/* This function generates a UUID that has its upper 2 bytes the same as
+ * the passed in UUID. This is a constraint of the current layout, and hence
+ * maintained in this file. */
+void
+dht2_generate_uuid_with_constraint (uuid_t out_gfid, uuid_t in_gfid)
+{
+        int32_t bucket;
+
+        bucket = gfid_to_bucket (in_gfid);
+        gf_uuid_generate (out_gfid);
+
+        /* TODO: are we endian safe here? */
+        out_gfid[1] = ((bucket >> 8) & 0xFF);
+        out_gfid[0] = ((bucket) & 0xFF);
+}
+
 xlator_t *
 dht2_find_subvol_for_gfid (dht2_conf_t *conf, uuid_t gfid,
                            dht2_layout_type_t which)
