@@ -1474,7 +1474,15 @@ brick_graph_add_posix (volgen_graph_t *graph, glusterd_volinfo_t *volinfo,
 
         ret = -1;
 
-        xl = volgen_graph_add (graph, "storage/posix", volinfo->volname);
+        if (volinfo->dht2_mds_count && volinfo->dht2_data_count) {
+                gf_msg ("glusterd", GF_LOG_WARNING, 0, 0,
+                        "DHT2 detected, using POSIX2 MDS as the brick storage");
+                xl = volgen_graph_add (graph, "storage/posix2-mds",
+                                       volinfo->volname);
+        } else {
+                xl = volgen_graph_add (graph, "storage/posix",
+                                       volinfo->volname);
+        }
         if (!xl)
                 goto out;
 
