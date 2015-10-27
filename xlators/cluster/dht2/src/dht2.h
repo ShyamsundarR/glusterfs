@@ -59,4 +59,7 @@ typedef struct dht2_local dht2_local_t;
 /* xlator FOP entry/exit points */
 int32_t dht2_lookup (call_frame_t *, xlator_t *, loc_t *, dict_t *);
 
+int32_t dht2_create (call_frame_t *, xlator_t *, loc_t *, int32_t,
+                     mode_t, mode_t, fd_t *, dict_t *);
+
 #endif /* _DHT2_H */
