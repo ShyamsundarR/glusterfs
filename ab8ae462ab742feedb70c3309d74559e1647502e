@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_bc2b4481",
+        "filename": "xlators/mgmt/glusterd/src/glusterd-volgen.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1480,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-10-27T20:19:14Z",
+      "side": 1,
+      "message": "Obviously more intelligence than this is needed when we have posix2-ds and mds, for now sticking to mds, so that we have one reduced step in the manual steps.\n\nIn the future, if we specialize based on brick type, I am wondering where we would get that information from. Anyway something for later.",
+      "revId": "ab8ae462ab742feedb70c3309d74559e1647502e",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
