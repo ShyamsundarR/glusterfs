@@ -182,4 +182,6 @@ zfstore_dtor (xlator_t *this, void *store)
 struct xlator_fops zfstore_fops = {
         .lookup = zfstore_lookup,
         .create = zfstore_create,
+        .flush  = zfstore_flush,
+        .setattr = zfstore_setattr,
 };

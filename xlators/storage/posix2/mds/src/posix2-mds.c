@@ -185,6 +185,34 @@ posix2_create (call_frame_t *frame,
         return 0;
 }
 
+int32_t
+posix2_flush (call_frame_t *frame, xlator_t *this, fd_t *fd, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->flush)
+                return handle->storeops->flush (frame, this, fd, xdata);
+
+        STACK_UNWIND_STRICT (flush, frame, -1, ENOTSUP, NULL);
+        return 0;
+}
+
+int32_t
+posix2_setattr (call_frame_t *frame, xlator_t *this,
+                loc_t *loc, struct iatt *stbuf, int32_t valid, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->setattr)
+                return handle->storeops->setattr (frame, this,
+                                                  loc, stbuf, valid, xdata);
+
+        STACK_UNWIND_STRICT (setattr, frame, -1, ENOTSUP, NULL, NULL, NULL);
+        return 0;
+}
+
 class_methods_t class_methods = {
         .init = posix2_init,
         .fini = posix2_fini,
@@ -193,6 +221,8 @@ class_methods_t class_methods = {
 struct xlator_fops fops = {
         .lookup  = posix2_lookup,
         .create  = posix2_create,
+        .flush   = posix2_flush,
+        .setattr = posix2_setattr,
 };
 
 struct xlator_cbks cbks = {
