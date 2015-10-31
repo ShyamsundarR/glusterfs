@@ -3,7 +3,7 @@ xlatordir = $(libdir)/glusterfs/$(PACKAGE_VERSION)/xlator/storage
 
 posix2_mds_la_LDFLAGS = -module -avoid-version
 
-posix2_mds_la_SOURCES = posix2-mds.c zfstore.c zfstore-dir.c zfstore-handle.c \
+posix2_mds_la_SOURCES = posix2-mds.c zfstore.c zfstore-dir.c zfstore-file.c zfstore-handle.c \
                         posix2-common.c
 
 posix2_mds_la_LIBADD = $(top_builddir)/libglusterfs/src/libglusterfs.la $(LIBAIO) \
