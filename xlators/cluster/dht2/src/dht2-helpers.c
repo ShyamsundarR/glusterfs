@@ -19,31 +19,31 @@
 #include "dht2-helpers.h"
 
 dht2_local_t *
-dht2_local_init (call_frame_t *frame, loc_t *loc, fd_t *fd, glusterfs_fop_t fop)
+dht2_local_init (call_frame_t *frame,
+                 dht2_conf_t *conf, loc_t *loc, fd_t *fd, glusterfs_fop_t fop)
 {
         dht2_local_t *local = NULL;
         int           ret   = 0;
 
-        local = mem_get0 (THIS->local_pool);
+        local = mem_get0 (conf->local_pool);
         if (!local)
-                goto out;
+                goto err;
 
         if (loc) {
                 ret = loc_copy (&local->d2local_loc, loc);
                 if (ret)
-                        goto out;
+                        goto free_local;
         }
 
         local->d2local_fop = fop;
-
         frame->local = local;
-out:
-        if (ret) {
-                if (local)
-                        mem_put (local);
-                local = NULL;
-        }
+
         return local;
+
+ free_local:
+        mem_put (local);
+ err:
+        return NULL;
 }
 
 void

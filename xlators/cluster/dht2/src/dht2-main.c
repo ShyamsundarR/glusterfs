@@ -21,7 +21,6 @@
 #include "dht2-layout.h"
 #include "dht2-messages.h"
 
-
 /* xlator FOP entry and cbk functions */
 /* TODO: FOPs would possibly go into their own .c files based on grouping */
 
@@ -41,8 +40,8 @@ bail:
  * of this in the create transaction, leaving it behind, as it would get into
  * code-gen parts as it closely follows stat implementation */
 int32_t
-dht2_open (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
-           fd_t *fd, dict_t *xdata)
+dht2_open (call_frame_t *frame,
+           xlator_t *this, loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
 {
         dht2_conf_t     *conf = NULL;
         dht2_local_t    *local = NULL;
@@ -58,7 +57,7 @@ dht2_open (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
         if (!conf)
                 goto err;
 
-        local = dht2_local_init (frame, loc, NULL, GF_FOP_OPEN);
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_OPEN);
         if (!local) {
                 op_errno = ENOMEM;
                 goto err;
@@ -166,7 +165,7 @@ dht2_create (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
                 goto err;
         }
 
-        local = dht2_local_init (frame, loc, NULL, GF_FOP_CREATE);
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_CREATE);
         if (!local) {
                 op_errno = ENOMEM;
                 goto err;
@@ -197,6 +196,9 @@ dht2_create (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
         /* fill in gfid-req for entry creation, to colocate file inode with the
          * parent */
         dht2_generate_uuid_with_constraint (gfid_req, loc->parent->gfid);
+        gf_msg (this->name, GF_LOG_DEBUG, 0, 0,
+                "UUID: [%s] winding to subvol: [%s]",
+                uuid_utoa (gfid_req), wind_subvol->name);
         /* TODO: gfid-req is something other parts of the code use as well. Need
          * to understand how this would work, when we overwrite the same with
          * our requested GFID */
@@ -253,7 +255,7 @@ dht2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xattr_req)
         if (!conf)
                 goto err;
 
-        local = dht2_local_init (frame, loc, NULL, GF_FOP_STAT);
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_STAT);
         if (!local) {
                 op_errno = ENOMEM;
                 goto err;
@@ -430,7 +432,7 @@ dht2_lookup (call_frame_t *frame, xlator_t *this,
         if (!conf)
                 goto err;
 
-        local = dht2_local_init (frame, loc, NULL, GF_FOP_LOOKUP);
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_LOOKUP);
         if (!local) {
                 op_errno = ENOMEM;
                 goto err;
@@ -449,7 +451,7 @@ dht2_lookup (call_frame_t *frame, xlator_t *this,
                 gf_uuid_copy (search_gfid, loc->gfid);
 
                 /* generate wind loc based on GFID only */
-                if (!dht2_generate_nameless_loc (&tmp_loc, loc)) {
+                if (dht2_generate_nameless_loc (&tmp_loc, loc)) {
                         op_errno = errno;
                         goto err;
                 }
@@ -460,7 +462,7 @@ dht2_lookup (call_frame_t *frame, xlator_t *this,
                 gf_uuid_copy (search_gfid, loc->inode->gfid);
 
                 /* generate wind loc based on GFID only */
-                if (!dht2_generate_nameless_loc (&tmp_loc, loc)) {
+                if (dht2_generate_nameless_loc (&tmp_loc, loc)) {
                         op_errno = errno;
                         goto err;
                 }
@@ -552,7 +554,6 @@ dht2_free_conf (dht2_conf_t **conf)
 int32_t
 dht2_init (xlator_t *this)
 {
-        int          ret = -1;
         dht2_conf_t *conf = NULL;
 
         if (!this->parents) {
@@ -565,7 +566,6 @@ dht2_init (xlator_t *this)
         if (!conf)
                 goto out;
 
-
         GF_OPTION_INIT("dht2-data-count", conf->d2cnf_data_count, int32, out);
         GF_OPTION_INIT("dht2-mds-count", conf->d2cnf_mds_count, int32, out);
 
@@ -574,7 +574,7 @@ dht2_init (xlator_t *this)
                         "Invalid mds or data count specified"
                         " (data - %d, mds - %d)",
                         conf->d2cnf_data_count, conf->d2cnf_mds_count);
-                goto out;
+                goto freeconf;
         }
 
         gf_msg (this->name, GF_LOG_INFO, 0, 0,
@@ -587,23 +587,28 @@ dht2_init (xlator_t *this)
         gf_asprintf (&conf->d2cnf_eremote_reason_xattr_name,
                      "%s."DHT_EREMOTE_XATTR_STR, conf->d2cnf_xattr_base_name);
 
-        ret = dht2_layout_fetch (this, conf);
-        if (ret) {
+        conf->d2cnf_layout = dht2_layout_fetch (this, conf);
+        if (!conf->d2cnf_layout) {
                 gf_msg (this->name, GF_LOG_CRITICAL, errno, 0,
                         "Unable to fetch layout information.");
-                goto out;
+                goto freexname;
         }
+
+        conf->local_pool = mem_pool_new (dht2_local_t, 512);
+        if (!conf->local_pool)
+                goto freelayout;
 
         this->private = conf;
+        return 0;
 
-        ret = 0;
-
-out:
-        if (ret && conf) {
-                dht2_free_conf (&conf);
-        }
-
-        return ret;
+ freelayout:
+        GF_FREE (conf->d2cnf_layout);
+ freexname:
+        GF_FREE (conf->d2cnf_eremote_reason_xattr_name);
+ freeconf:
+        GF_FREE (conf);
+ out:
+        return -1;
 }
 
 void
@@ -628,6 +633,8 @@ class_methods_t class_methods = {
 };
 
 struct xlator_fops fops = {
+        .lookup = dht2_lookup,
+        .create = dht2_create,
 };
 
 struct xlator_cbks cbks = {
