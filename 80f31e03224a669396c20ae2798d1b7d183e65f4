@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_d44b64ae",
+        "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
+        "patchSetId": 3
+      },
+      "lineNbr": 103,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-11-01T11:03:38Z",
+      "side": 1,
+      "message": "Why the change from using last 16 bits? Backend does get a bit too localized in this case.",
+      "revId": "80f31e03224a669396c20ae2798d1b7d183e65f4",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
