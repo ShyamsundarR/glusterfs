@@ -56,24 +56,24 @@ dht2_find_subvol_for_gfid (dht2_conf_t *conf, uuid_t gfid,
  * or more popularly the layout and store it in the DHT2 conf structure.
  * At present it just statically computes a bucket assignment as cluster
  * expansion is not yet supported */
-int
+struct dht2_layout *
 dht2_layout_fetch (xlator_t *this, dht2_conf_t *conf)
 {
         int subvol_position, i;
+        struct dht2_layout *layout = NULL;
         xlator_list_t *subvol_list, *subvol_data_list;
 
-        conf->d2cnf_layout = GF_CALLOC (1, sizeof (dht2_layout_t),
-                                        gf_dht2_mt_dht2_layout_t);
-        if (!conf->d2cnf_layout)
-                return -1;
+        layout = GF_CALLOC (1,
+                            sizeof (dht2_layout_t), gf_dht2_mt_dht2_layout_t);
+        if (!layout)
+                return NULL;
 
         /* Iterate over bucket array assigning in order subvolumes */
         /* for MDS first */
         subvol_list = this->children;
         subvol_position = 0;
         for (i = 0; i < DHT2_LAYOUT_MAX_BUCKETS; i++) {
-                conf->d2cnf_layout->d2lay_mds_subvol_list[i] =
-                        subvol_list->xlator;
+                layout->d2lay_mds_subvol_list[i] = subvol_list->xlator;
                 subvol_list = subvol_list->next;
                 subvol_position++;
                 /* reset to head, to start assigning next set of buckets */
@@ -95,8 +95,7 @@ dht2_layout_fetch (xlator_t *this, dht2_conf_t *conf)
          * as per above loop*/
         subvol_position = 0;
         for (i = 0; i < DHT2_LAYOUT_MAX_BUCKETS; i++) {
-                conf->d2cnf_layout->d2lay_ds_subvol_list[i] =
-                        subvol_list->xlator;
+                layout->d2lay_ds_subvol_list[i] = subvol_list->xlator;
                 subvol_list = subvol_list->next;
                 subvol_position++;
                 /* reset to head, to start assigning next set of buckets */
@@ -106,7 +105,7 @@ dht2_layout_fetch (xlator_t *this, dht2_conf_t *conf)
                 }
         }
 
-        return 0;
+        return layout;
 }
 
 void
