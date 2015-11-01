@@ -36,7 +36,7 @@ void dht2_generate_uuid_with_constraint (uuid_t , uuid_t);
 
 xlator_t *dht2_find_subvol_for_gfid (dht2_conf_t *, uuid_t, dht2_layout_type_t);
 
-int dht2_layout_fetch (xlator_t *, dht2_conf_t *);
+struct dht2_layout *dht2_layout_fetch (xlator_t *, dht2_conf_t *);
 
 void dht2_layout_return (dht2_layout_t *);
 

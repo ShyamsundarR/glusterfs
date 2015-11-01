@@ -31,8 +31,8 @@
                 }                                                       \
         } while (0)                                                     \
 
-dht2_local_t *dht2_local_init (call_frame_t *, loc_t *, fd_t *,
-                               glusterfs_fop_t);
+dht2_local_t *dht2_local_init (call_frame_t *,
+                               dht2_conf_t *, loc_t *, fd_t *, glusterfs_fop_t);
 
 void dht2_local_wipe (xlator_t *, dht2_local_t *);
 

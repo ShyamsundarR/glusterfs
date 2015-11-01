@@ -29,6 +29,8 @@ typedef enum dht2_eremote_reasons {
 } dht2_eremote_reasons_t;
 
 struct dht2_conf {
+        struct mem_pool *local_pool;   /* pool for ->local allocation */
+
         /* subvolume configuration */
         int     d2cnf_data_count; /* count of data subvolumes */
         int     d2cnf_mds_count; /* count of meta-data subvolumes */
