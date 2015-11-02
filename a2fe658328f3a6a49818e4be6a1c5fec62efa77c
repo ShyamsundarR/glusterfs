@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9ab29df4_d19c516c",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 590,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-11-02T19:17:52Z",
+      "side": 1,
+      "message": "This is right, but freeing the same should also be abstracted, as internally the layout can choose any method to allocate the space, or may have other things to free within what was allocated and sent back.\n\nP.S: This is not the final interface I agree, but still leveraging the dht2_layout_release abstraction for now.",
+      "revId": "a2fe658328f3a6a49818e4be6a1c5fec62efa77c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "9ab29df4_9192d955",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 604,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-11-02T19:17:52Z",
+      "side": 1,
+      "message": "Why not just call dht2_free_conf, as that can ensure safety of which parts are allocated etc. and free them appropriately? Instead of the multiple goto labels (stylistically speaking)",
+      "revId": "a2fe658328f3a6a49818e4be6a1c5fec62efa77c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
