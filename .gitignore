@@ -91,3 +91,5 @@ extras/peer_add_secret_pub
 tools/gfind_missing_files/gcrawler
 tools/glusterfind/glusterfind
 tools/glusterfind/src/tool.conf
+xlators/cluster/dht2/src/dht2-autogen-fops.c
+xlators/cluster/dht2/src/dht2-autogen-fops.h
