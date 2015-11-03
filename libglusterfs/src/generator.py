@@ -436,7 +436,7 @@ def get_error_arg (type_str):
 		return "NULL"
 	return "-1"
 
-def get_subs (names, types):
+def get_subs (names, types, cbktypes):
 	sdict = {}
 	sdict["@SHORT_ARGS@"] = string.join(names,", ")
 	# Convert two separate tuples to one of (name, type) sub-tuples.
@@ -447,13 +447,17 @@ def get_subs (names, types):
 	sdict["@LONG_ARGS@"] = string.join(as_strings,",\n\t")
 	# So much more readable than string.join(map(string.join,zip(...))))
 	sdict["@ERROR_ARGS@"] = string.join(map(get_error_arg,types),", ")
+        sdict["@CBK_ERROR_ARGS@"] = string.join(map(get_error_arg,cbktypes),", ")
 	return sdict
 
 def generate (tmpl, name, subs):
 	text = tmpl.replace("@NAME@",name)
-	for old, new in subs[name].iteritems():
-		text = text.replace(old,new)
-	# TBD: reindent/reformat the result for maximum readability.
+        try:
+	       for old, new in subs[name].iteritems():
+	               text = text.replace(old,new)
+	       # TBD: reindent/reformat the result for maximum readability.
+        except:
+                return "#error Code generation failed"
 	return  text
 
 fop_subs = {}
@@ -464,12 +468,12 @@ for name, args in ops.iteritems():
 	# Create the necessary substitution strings for fops.
 	arg_names = [ a[1] for a in args if a[0] == 'fop-arg']
 	arg_types = [ a[2] for a in args if a[0] == 'fop-arg']
-	fop_subs[name] = get_subs(arg_names,arg_types)
+        cbk_types = [ a[2] for a in args if a[0] == 'cbk-arg']
+	fop_subs[name] = get_subs(arg_names,arg_types,cbk_types)
 
 	# Same thing for callbacks.
 	arg_names = [ a[1] for a in args if a[0] == 'cbk-arg']
-	arg_types = [ a[2] for a in args if a[0] == 'cbk-arg']
-	cbk_subs[name] = get_subs(arg_names,arg_types)
+	cbk_subs[name] = get_subs(arg_names,cbk_types,cbk_types)
 
 	# Callers can add other subs to these tables, or even create their
 	# own tables, using these same techniques, and then pass the result
