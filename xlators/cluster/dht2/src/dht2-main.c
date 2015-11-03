@@ -495,7 +495,9 @@ class_methods_t class_methods = {
 
 struct xlator_fops fops = {
         .lookup = dht2_lookup,
-        .create = dht2_create
+        .create = dht2_create,
+        .open = dht2_open,
+        .stat = dht2_stat
 };
 
 struct xlator_cbks cbks = {
