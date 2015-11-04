@@ -107,7 +107,7 @@ zfstore_setattr (call_frame_t *frame, xlator_t *this,
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                         (this, loc->gfid, entry, &prebuf, _gf_false);
+                       (this, zf, loc->gfid, entry, &prebuf, _gf_false);
         if (ret)
                 goto unwind_err;
 
@@ -116,7 +116,7 @@ zfstore_setattr (call_frame_t *frame, xlator_t *this,
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                         (this, loc->gfid, entry, &postbuf, _gf_false);
+                       (this, zf, loc->gfid, entry, &postbuf, _gf_false);
         if (ret)
                 goto unwind_err;
 
@@ -149,7 +149,7 @@ zfstore_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                     (this, loc->gfid, entry, &buf, _gf_false);
+                       (this, zf, loc->gfid, entry, &buf, _gf_false);
         if (ret)
                 goto unwind_err;
 

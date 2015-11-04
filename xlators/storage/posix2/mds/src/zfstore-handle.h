@@ -17,16 +17,21 @@
 
 int zfstore_handle_length (char *);
 int zfstore_make_handle (xlator_t *, char *, uuid_t, char *, size_t);
-int32_t zfstore_resolve_inodeptr (xlator_t *, uuid_t,
+int32_t zfstore_resolve_inodeptr (xlator_t *,
+                                  struct zfstore *, uuid_t,
                                   char *, struct iatt *, gf_boolean_t);
-int32_t zfstore_resolve_inode (xlator_t *, char *,
+int32_t zfstore_resolve_inode (xlator_t *,
+                               struct zfstore *,
                                uuid_t, struct iatt *, gf_boolean_t);
-int32_t zfstore_resolve_entry (xlator_t *, char *, const char *, uuid_t);
-int32_t zfstore_handle_entry (xlator_t *, char *,
+int32_t zfstore_resolve_entry (xlator_t *,
+                               struct zfstore *, char *, const char *, uuid_t);
+int32_t zfstore_handle_entry (xlator_t *, struct zfstore *,
                               char *, const char *, struct iatt *);
 int32_t zfstore_create_dir_hashes (xlator_t *, char *);
 
-int32_t zfstore_create_inode (xlator_t *, char *, int32_t, mode_t);
-int32_t zfstore_link_inode (xlator_t *, char *, const char *, uuid_t);
+int32_t zfstore_create_inode (xlator_t *,
+                              struct zfstore *, char *, int32_t, mode_t);
+int32_t zfstore_link_inode (xlator_t *,
+                            struct zfstore *, char *, const char *, uuid_t);
 
 #endif /* _ZFSTORE_HANDLE_H_ */
