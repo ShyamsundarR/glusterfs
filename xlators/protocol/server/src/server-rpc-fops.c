@@ -105,7 +105,9 @@ server_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
                                               state->loc.name);
                         }
                 }
-                goto out;
+
+                if (op_errno != EREMOTE)
+                        goto out;
         }
 
         root_inode = frame->root->client->bound_xl->itable->root;

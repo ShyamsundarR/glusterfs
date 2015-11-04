@@ -18,11 +18,13 @@ static int32_t
 zfstore_named_lookup (call_frame_t *frame,
                       xlator_t *this, struct zfstore *zf, loc_t *loc)
 {
-        int32_t      ret     = 0;
-        int          parlen  = 0;
-        char        *parpath = NULL;
-        struct iatt  buf     = {0,};
-        struct iatt  postbuf = {0,};
+        int32_t      ret      = 0;
+        int32_t      op_ret   = 0;
+        int32_t      op_errno = 0;
+        int          parlen   = 0;
+        char        *parpath  = NULL;
+        struct iatt  buf      = {0,};
+        struct iatt  postbuf  = {0,};
 
         parlen = zfstore_handle_length (zf->exportdir);
         parpath = alloca (parlen);
@@ -38,15 +40,20 @@ zfstore_named_lookup (call_frame_t *frame,
         /* lookup entry */
         ret = zfstore_handle_entry (this,
                                     zf->exportdir, parpath, loc->name, &buf);
-        if (ret)
-                goto unwind_err;
+        if (ret) {
+                if (errno != EREMOTE)
+                        goto unwind_err;
+
+                op_ret = -1;
+                op_errno = errno;
+        }
 
         ret = zfstore_resolve_inodeptr (this, loc->pargfid,
                                         parpath, &postbuf, _gf_true);
         if (ret)
                 goto unwind_err;
 
-        STACK_UNWIND_STRICT (lookup, frame, 0, 0,
+        STACK_UNWIND_STRICT (lookup, frame, op_ret, op_errno,
                              loc->inode, &buf, NULL, &postbuf);
         return 0;
 
