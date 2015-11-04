@@ -3025,7 +3025,7 @@ client3_3_lookup_cbk (struct rpc_req *req, struct iovec *iov, int count,
         op_errno = gf_error_to_errno (rsp.op_errno);
         gf_stat_to_iatt (&rsp.postparent, &postparent);
 
-        if (rsp.op_ret == -1)
+        if (rsp.op_ret == -1 && op_errno != EREMOTE)
                 goto out;
 
         rsp.op_ret = -1;
@@ -3048,7 +3048,8 @@ client3_3_lookup_cbk (struct rpc_req *req, struct iovec *iov, int count,
                 goto out;
         }
 
-        rsp.op_ret = 0;
+        if (op_errno == 0)
+                rsp.op_ret = 0;
 
 out:
         rsp.op_errno = op_errno;
