@@ -41,21 +41,29 @@ zfstore_make_handle (xlator_t *this, char *export,
  * directories.
  */
 static int32_t
-zfstore_stat_handle (xlator_t *this, uuid_t gfid,
+zfstore_stat_handle (xlator_t *this,
+                     struct zfstore *zf, uuid_t gfid,
                      char *path, struct iatt *stbuf, gf_boolean_t dircheck)
 {
         int32_t ret = 0;
-        struct stat lstatbuf = {0,};
+        struct stat *lstatbuf = NULL;
+        struct mdinode mdi = {0,};
+        struct mdoperations *md = NULL;
 
-        ret = lstat (path, &lstatbuf);
+        md = zf_get_inodeops (zf);
+        if (!md)
+                return -1;
+        ret = md->mdread (this, path, &mdi);
         if (ret)
                 return -1;
-        if (dircheck && !S_ISDIR (lstatbuf.st_mode)) {
+
+        s_mdinode_to_stat (&lstatbuf, &mdi);
+        if (dircheck && !S_ISDIR (lstatbuf->st_mode)) {
                 errno = ENOTDIR;
                 return -1;
         }
         if (stbuf) {
-                iatt_from_stat (stbuf, &lstatbuf);
+                iatt_from_stat (stbuf, lstatbuf);
                 gf_uuid_copy (stbuf->ia_gfid, gfid);
                 posix2_fill_ino_from_gfid (this, stbuf);
         }
@@ -64,19 +72,24 @@ zfstore_stat_handle (xlator_t *this, uuid_t gfid,
 
 int32_t
 zfstore_resolve_inodeptr (xlator_t *this,
-                         uuid_t tgtuuid, char *ihandle,
-                         struct iatt *stbuf, gf_boolean_t dircheck)
+                          struct zfstore *zf,
+                          uuid_t tgtuuid, char *ihandle,
+                          struct iatt *stbuf, gf_boolean_t dircheck)
 {
-        return zfstore_stat_handle (this, tgtuuid, ihandle, stbuf, dircheck);
+        return zfstore_stat_handle (this, zf, tgtuuid,
+                                     ihandle, stbuf, dircheck);
 }
 
 int32_t
 zfstore_resolve_inode (xlator_t *this,
-                      char *export, uuid_t tgtuuid,
-                      struct iatt *stbuf, gf_boolean_t dircheck)
+                       struct zfstore *zf, uuid_t tgtuuid,
+                       struct iatt *stbuf, gf_boolean_t dircheck)
 {
         int entrylen = 0;
         char *entry = NULL;
+        char *export = NULL;
+
+        export = zf->exportdir;
 
         entrylen = zfstore_handle_length (export);
         entry = alloca (entrylen);
@@ -86,7 +99,8 @@ zfstore_resolve_inode (xlator_t *this,
         if (entrylen <= 0)
                 goto error_return;
 
-        return zfstore_resolve_inodeptr (this, tgtuuid, entry, stbuf, dircheck);
+        return zfstore_resolve_inodeptr (this, zf, tgtuuid,
+                                         entry, stbuf, dircheck);
 
  error_return:
         return -1;
@@ -94,34 +108,41 @@ zfstore_resolve_inode (xlator_t *this,
 
 int32_t
 zfstore_resolve_entry (xlator_t *this,
+                       struct zfstore *zf,
                        char *parpath, const char *basename, uuid_t gfid)
 {
-        size_t size = 0;
+        int32_t ret = 0;
         char realpath[PATH_MAX] = {0,};
+        struct mdname mdn = {0, };
+        struct mdoperations *md = NULL;
+
+        errno = EINVAL;
+        md = zf_get_nameops (zf);
+        if (!md)
+                return -1;
 
         (void) snprintf (realpath, PATH_MAX, "%s/%s", parpath, basename);
-        size = sys_lgetxattr (realpath, GFID_XATTR_KEY, gfid, sizeof (uuid_t));
-        if (size == -1)
+        ret = md->mdread (this, realpath, &mdn);
+        if (ret)
                 return -1;
-        if (size != sizeof (uuid_t)) {
-                errno = EINVAL;
-                return -1;
-        }
+
+        s_mdname_to_gfid (gfid, &mdn);
         return 0;
 }
 
 int32_t
-zfstore_handle_entry (xlator_t *this, char *export,
+zfstore_handle_entry (xlator_t *this,
+                      struct zfstore *zf,
                       char *parpath, const char *basename, struct iatt *stbuf)
 {
         int32_t ret = 0;
         uuid_t tgtuuid = {0,};
 
-        ret = zfstore_resolve_entry (this, parpath, basename, tgtuuid);
+        ret = zfstore_resolve_entry (this, zf, parpath, basename, tgtuuid);
         if (ret)
                 goto error_return;
 
-        ret = zfstore_resolve_inode (this, export, tgtuuid, stbuf, _gf_false);
+        ret = zfstore_resolve_inode (this, zf, tgtuuid, stbuf, _gf_false);
         if (ret < 0) {
                 if (errno == ENOENT)
                         errno = EREMOTE;
@@ -171,8 +192,13 @@ zfstore_create_dir_hashes (xlator_t *this, char *entry)
         return -1;
 }
 
+/**
+ * TODO: save separate inodeptr metadata.
+ */
 int32_t
-zfstore_create_inode (xlator_t *this, char *entry, int32_t flags, mode_t mode)
+zfstore_create_inode (xlator_t *this,
+                      struct zfstore *zf,
+                      char *entry, int32_t flags, mode_t mode)
 {
         int fd = -1;
         int32_t ret = 0;
@@ -202,19 +228,30 @@ zfstore_create_inode (xlator_t *this, char *entry, int32_t flags, mode_t mode)
 
 int32_t
 zfstore_link_inode (xlator_t *this,
+                    struct zfstore *zf,
                     char *parpath, const char *basename, uuid_t gfid)
 {
         int32_t ret = -1;
         int fd = -1;
         char realpath[PATH_MAX] = {0,};
+        struct mdname mdn = {0,};
+        struct mdoperations *md = NULL;
+
+        errno = EINVAL;
+        md = zf_get_nameops (zf);
+        if (!md)
+                goto error_return;
 
         (void) snprintf (realpath, PATH_MAX, "%s/%s", parpath, basename);
-
         fd = open (realpath, O_CREAT | O_EXCL | O_WRONLY, 0700);
         if (fd < 0)
                 goto error_return;
 
-        ret = sys_fsetxattr (fd, GFID_XATTR_KEY, gfid, sizeof (uuid_t), 0);
+        s_gfid_to_mdname (gfid, &mdn);
+        if (md->fmdwrite)
+                ret = md->fmdwrite (this, fd, &mdn, NULL);
+        else
+                ret = md->mdwrite (this, realpath, &mdn, NULL);
 
         close (fd);
 
