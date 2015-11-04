@@ -144,8 +144,10 @@ zfstore_handle_entry (xlator_t *this,
 
         ret = zfstore_resolve_inode (this, zf, tgtuuid, stbuf, _gf_false);
         if (ret < 0) {
-                if (errno == ENOENT)
+                if (errno == ENOENT) {
+                        gf_uuid_copy (stbuf->ia_gfid, tgtuuid);
                         errno = EREMOTE;
+                }
                 goto error_return;
         }
 
