@@ -38,8 +38,7 @@ zfstore_named_lookup (call_frame_t *frame,
                 goto unwind_err;
 
         /* lookup entry */
-        ret = zfstore_handle_entry (this, zf->exportdir, parpath, loc->name,
-                                    &buf);
+        ret = zfstore_handle_entry (this, zf, parpath, loc->name, &buf);
         if (ret) {
                 if (errno != EREMOTE)
                         goto unwind_err;
@@ -47,8 +46,8 @@ zfstore_named_lookup (call_frame_t *frame,
                 op_errno = errno;
         }
 
-        ret = zfstore_resolve_inodeptr (this, loc->pargfid,
-                                        parpath, &postbuf, _gf_true);
+        ret = zfstore_resolve_inodeptr
+                    (this, zf, loc->pargfid, parpath, &postbuf, _gf_true);
         if (ret)
                 goto unwind_err;
 
@@ -67,17 +66,19 @@ zfstore_named_lookup (call_frame_t *frame,
  */
 static int32_t
 zfstore_create_inode0x1 (xlator_t *this,
+                         struct zfstore *zf,
                          char *entry, uuid_t rootgfid, struct iatt *stbuf)
 {
         int32_t ret = 0;
         mode_t mode = (0700 | S_IFDIR);
 
-        ret = zfstore_create_inode (this, entry, 0, mode);
+        ret = zfstore_create_inode (this, zf, entry, 0, mode);
         if (ret)
                 goto error_return;
 
         /* we just created it, but still.. */
-        ret = zfstore_resolve_inodeptr (this, rootgfid, entry, stbuf, _gf_true);
+        ret = zfstore_resolve_inodeptr
+                      (this, zf, rootgfid, entry, stbuf, _gf_true);
         /**
          * If lookup() fails now, we return without doing doing any cleanups as
          * we haven't left anything half-baked.
@@ -114,12 +115,13 @@ zfstore_nameless_lookup (call_frame_t *frame,
         if (entrylen <= 0)
                 goto unwind_err;
 
-        ret = zfstore_resolve_inodeptr (this, tgtuuid, entry, &buf, _gf_false);
+        ret = zfstore_resolve_inodeptr
+                        (this, zf, tgtuuid, entry, &buf, _gf_false);
         if (ret < 0) {
                 if (errno != ENOENT)
                         goto unwind_err;
                 if ((errno == ENOENT) && __is_root_gfid (tgtuuid))
-                        ret = zfstore_create_inode0x1 (this, entry, tgtuuid, &buf);
+                        ret = zfstore_create_inode0x1 (this, zf, entry, tgtuuid, &buf);
                 if (ret) {
                         if (errno == ENOENT)
                                 errno = ESTALE;
@@ -227,16 +229,17 @@ zfstore_create_namei (xlator_t *this, char *parpath,
         entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto error_return;
-        ret = zfstore_create_inode (this, entry, flags, mode);
+        ret = zfstore_create_inode (this, zf, entry, flags, mode);
         if (ret)
                 goto error_return;
 
         /* link name to inode */
-        ret = zfstore_link_inode (this, parpath, loc->name, gfid);
+        ret = zfstore_link_inode (this, zf, parpath, loc->name, gfid);
         if (ret)
                 goto purge_inode;
 
-        ret = zfstore_resolve_inodeptr (this, gfid, entry, stbuf, _gf_false);
+        ret = zfstore_resolve_inodeptr
+                        (this, zf, gfid, entry, stbuf, _gf_false);
         if (ret)
                 goto purge_entry;
 
@@ -275,7 +278,7 @@ zfstore_do_namei (xlator_t *this,
         LOCK (&parent->lock);
         {
                 ret = zfstore_handle_entry
-                               (this, export, parpath, loc->name, stbuf);
+                               (this, zf, parpath, loc->name, stbuf);
                 if (ret < 0) {
                         if (errno != ENOENT)
                                 goto unblock;
@@ -328,7 +331,7 @@ zfstore_create (call_frame_t *frame,
 
         /* parent prebuf */
         ret = zfstore_resolve_inodeptr
-                       (this, loc->pargfid, parpath, &prebuf, _gf_true);
+                       (this, zf, loc->pargfid, parpath, &prebuf, _gf_true);
         if (ret)
                 goto unwind_err;
 
@@ -339,7 +342,7 @@ zfstore_create (call_frame_t *frame,
 
         /* parent postbuf */
         ret = zfstore_resolve_inodeptr
-                       (this, loc->pargfid, parpath, &postbuf, _gf_true);
+                       (this, zf, loc->pargfid, parpath, &postbuf, _gf_true);
         if (ret)
                 goto unwind_err;
 

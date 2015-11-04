@@ -16,6 +16,7 @@ enum gf_posix2_mem_types {
         gf_posix2_mt_private_t = gf_common_mt_end + 1,
         gf_posix2_mt_zfstore_t,
         gf_posix2_mt_posix2_fd_t,
+        gf_posix2_mt_nameiops_t,
         gf_posix2_mt_end,
 };
 

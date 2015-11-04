@@ -108,7 +108,7 @@ zfstore_setattr (call_frame_t *frame, xlator_t *this,
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                         (this, loc->gfid, entry, &prebuf, _gf_false);
+                       (this, zf, loc->gfid, entry, &prebuf, _gf_false);
         if (ret)
                 goto unwind_err;
 
@@ -117,7 +117,7 @@ zfstore_setattr (call_frame_t *frame, xlator_t *this,
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                         (this, loc->gfid, entry, &postbuf, _gf_false);
+                       (this, zf, loc->gfid, entry, &postbuf, _gf_false);
         if (ret)
                 goto unwind_err;
 
@@ -150,7 +150,7 @@ zfstore_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
                 goto unwind_err;
 
         ret = zfstore_resolve_inodeptr
-                     (this, loc->gfid, entry, &buf, _gf_false);
+                       (this, zf, loc->gfid, entry, &buf, _gf_false);
         if (ret)
                 goto unwind_err;
 
@@ -170,12 +170,13 @@ zfstore_open (call_frame_t *frame, xlator_t *this,
         int parlen = 0;
         char *parpath = NULL;
         struct iatt buf = {0,};
-        struct iatt prebuf = {0,};
         struct zfstore *zf = NULL;
 
         zf = posix2_get_store (this);
 
-        if (flags & O_CREAT)  {
+        errno = EINVAL;
+
+        if (flags & O_CREAT) {
                 parlen = zfstore_handle_length (zf->exportdir);
                 parpath = alloca (parlen);
 
@@ -184,28 +185,17 @@ zfstore_open (call_frame_t *frame, xlator_t *this,
                 if (parlen <= 0)
                         goto unwind_err;
 
-                /* parent prebuf */
-                ret = zfstore_resolve_inodeptr
-                               (this, loc->pargfid, parpath, &prebuf, _gf_true);
-                if (ret)
-                        goto unwind_err;
-
                 ret = zfstore_do_namei
                              (this, parpath, loc, fd, flags, 0700, xdata, &buf);
-                if (ret)
-                        goto unwind_err;
         } else {
-                if (gf_uuid_is_null (loc->gfid)) {
-                        gf_msg (this->name, GF_LOG_ERROR, 0,
-                                POSIX2_MSG_INODE_NULL_GFID,
-                                "null gfid for path %s", (loc)->path);
-                }
                 ret = zfstore_open_inode
                                     (this, zf->exportdir, loc->gfid, fd, flags);
-                if (ret <= 0)
-                        goto unwind_err;
         }
-        STACK_UNWIND_STRICT (open, frame, 0, errno, fd, xdata);
+
+        if (ret)
+                goto unwind_err;
+
+        STACK_UNWIND_STRICT (open, frame, 0, 0, fd, xdata);
         return 0;
 
  unwind_err:
