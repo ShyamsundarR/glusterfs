@@ -1,0 +1,12 @@
+#!/bun/bash
+
+function create_dht2_volume()
+{
+    vol=$1
+    mdscount=$2
+    dscount=$3
+
+    shift 3;
+
+    $CLI volume create $vol mds $mdscount data $dscount $@
+}
