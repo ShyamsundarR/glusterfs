@@ -14,7 +14,8 @@ noinst_HEADERS = posix2-mds.h posix2-messages.h super.h zfstore.h zfxattr.h zfst
 AM_CPPFLAGS = $(GF_CPPFLAGS) -I$(top_srcdir)/libglusterfs/src \
             -I$(top_srcdir)/rpc/xdr/src \
 	    -I$(top_srcdir)/rpc/rpc-lib/src \
-	    -I$(top_srcdir)/xlators/storage/posix2/common
+	    -I$(top_srcdir)/xlators/storage/posix2/common \
+            -I$(CONTRIBDIR)/crc32c
 
 AM_CFLAGS = -fno-strict-aliasing -Wall $(GF_CFLAGS)
 
