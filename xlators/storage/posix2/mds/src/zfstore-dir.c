@@ -167,7 +167,7 @@ zfstore_open_and_save (xlator_t *this, fd_t *fd, char *entry, int32_t flags)
         return -1;
 }
 
-static int32_t
+int32_t
 zfstore_open_inode (xlator_t *this,
                     char *export, uuid_t gfid, fd_t *fd, int32_t flags)
 {
@@ -252,7 +252,7 @@ zfstore_create_namei (xlator_t *this, char *parpath,
  * parent inode. Parallel creates for the name entry converge at the
  * correct inode and acquire an fd reference.
  */
-static int32_t
+int32_t
 zfstore_do_namei (xlator_t *this,
                   char *parpath, loc_t *loc, fd_t *fd,
                   int32_t flags, mode_t mode, dict_t *xdata, struct iatt *stbuf)

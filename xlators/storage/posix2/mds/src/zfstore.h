@@ -38,9 +38,19 @@ struct xlator_fops zfstore_fops;
 int32_t zfstore_lookup (call_frame_t *, xlator_t *, loc_t *, dict_t *);
 int32_t zfstore_create (call_frame_t *, xlator_t *,
                         loc_t *, int32_t, mode_t, mode_t, fd_t *, dict_t *);
+int32_t
+zfstore_open (call_frame_t *frame, xlator_t *this,
+              loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata);
 int32_t zfstore_flush (call_frame_t *, xlator_t *, fd_t *, dict_t *);
 int32_t zfstore_setattr (call_frame_t *, xlator_t *,
                          loc_t *, struct iatt *, int32_t, dict_t *);
 int32_t zfstore_stat (call_frame_t *, xlator_t *, loc_t *, dict_t *);
+int32_t
+zfstore_do_namei (xlator_t *this,
+                  char *parpath, loc_t *loc, fd_t *fd,
+                  int32_t flags, mode_t mode, dict_t *xdata, struct iatt *stbuf);
+int32_t
+zfstore_open_inode (xlator_t *this,
+                    char *export, uuid_t gfid, fd_t *fd, int32_t flags);
 
 #endif /* __ZFSTORE_H__ */
