@@ -169,6 +169,19 @@ posix2_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 }
 
 int32_t
+posix2_open (call_frame_t *frame, xlator_t *this,
+            loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->open)
+                return handle->storeops->open (frame, this, loc, flags, fd, xdata);
+
+        STACK_UNWIND_STRICT (open, frame, -1, ENOTSUP, NULL, NULL);
+}
+
+int32_t
 posix2_create (call_frame_t *frame,
                 xlator_t *this, loc_t *loc, int32_t flags,
                 mode_t mode, mode_t umask, fd_t *fd, dict_t *xdata)
@@ -235,6 +248,7 @@ class_methods_t class_methods = {
 struct xlator_fops fops = {
         .lookup  = posix2_lookup,
         .create  = posix2_create,
+        .open    = posix2_open,
         .flush   = posix2_flush,
         .setattr = posix2_setattr,
         .stat    = posix2_stat,
