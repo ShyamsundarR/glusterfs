@@ -50,4 +50,6 @@
 
 #define POSIX2_MSG_EXPORT_GFID_FETCH_FAILED        (POSIX2_COMP_BASE + 10)
 
+#define POSIX2_MSG_INODE_NULL_GFID                 (POSIX2_COMP_BASE + 11)
+
 #endif
