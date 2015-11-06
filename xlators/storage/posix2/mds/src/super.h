@@ -21,14 +21,14 @@ struct writecontrol {
         gf_boolean_t create;
 };
 
-struct mdname {
+struct __attribute__ ((__packed__)) mdname {
         uuid_t uuid;
 };
 
 /**
  * FIXME: have our *own* stat structure
  */
-struct mdinode {
+struct __attribute__ ((__packed__)) mdinode {
         struct stat stbuf;
 };
 

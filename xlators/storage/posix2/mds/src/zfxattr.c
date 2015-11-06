@@ -13,6 +13,8 @@
 #include "compat-errno.h"
 #include "posix2-messages.h"
 
+#include "crc32c.h"
+
 /**
  * Extended Attribute Store (EAS) maintains metadata in inode extended attribute
  * (or xattrs) for each filesystem object. Furthermore each filesystem object is
@@ -129,6 +131,34 @@ zfxattr_fini (xlator_t *this, const char *handle)
         return 0;
 }
 
+static void
+zfxattr_mdname_to_zfmdname (struct mdname *mdn, struct zfxattr_mdname *zmdn)
+{
+        memcpy (&zmdn->mdn, mdn, sizeof (*mdn));
+        zmdn->crc = crc32cSlicingBy8 (0, zmdn, sizeof (*zmdn));
+}
+
+static int32_t
+zfxattr_zfmdname_to_mdname (xlator_t *this,
+                            struct mdname *mdn, struct zfxattr_mdname *zmdn)
+{
+        uint32_t crcmem = 0;
+        uint32_t crcdisk = zmdn->crc;
+
+        zmdn->crc = 0;
+        crcmem = crc32cSlicingBy8 (0, zmdn, sizeof (*zmdn));
+
+        if (crcmem == crcdisk) {
+                memcpy (mdn, &zmdn->mdn, sizeof (*mdn));
+                return 0;
+        }
+
+        gf_msg (this->name, GF_LOG_CRITICAL, 0, 0, "Metadata checksum mismatch "
+                "   [Disk: %u, CRC: %u]", crcdisk, crcmem);
+        errno = EIO;
+        return 1;
+}
+
 /* name entry metadata operations */
 int32_t
 zfxattr_name_mdread (xlator_t *this, void *handle, void *md)
@@ -136,16 +166,17 @@ zfxattr_name_mdread (xlator_t *this, void *handle, void *md)
         size_t size = 0;
         char *path = handle;
         struct mdname *mdn = md;
+        struct zfxattr_mdname zmdn = {0, };
 
-        size = sys_lgetxattr (path, GFID_XATTR_KEY, mdn, sizeof (*mdn));
+        size = sys_lgetxattr (path, GFID_XATTR_KEY, &zmdn, sizeof (zmdn));
         if (size == -1)
                 return -1;
-        if (size != sizeof (struct mdname)) {
+        if (size != sizeof (struct zfxattr_mdname)) {
                 errno = EINVAL;
                 return -1;
         }
 
-        return 0;
+        return zfxattr_zfmdname_to_mdname (this, mdn, &zmdn);
 }
 
 int32_t
@@ -154,8 +185,10 @@ zfxattr_name_mdwrite (xlator_t *this,
 {
         char *path = handle;
         struct mdname *mdn = md;
+        struct zfxattr_mdname zmdn = {0,};
 
-        return sys_lsetxattr (path, GFID_XATTR_KEY, mdn, sizeof (*mdn), 0);
+        zfxattr_mdname_to_zfmdname (mdn, &zmdn);
+        return sys_lsetxattr (path, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), 0);
 }
 
 int32_t
@@ -169,8 +202,10 @@ zfxattr_name_fmdwrite (xlator_t *this,
                        int fd, void *md, struct writecontrol *wc)
 {
         struct mdname *mdn = md;
+        struct zfxattr_mdname zmdn = {0,};
 
-        return sys_fsetxattr (fd, GFID_XATTR_KEY, mdn, sizeof (*mdn), 0);
+        zfxattr_mdname_to_zfmdname (mdn, &zmdn);
+        return sys_fsetxattr (fd, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), 0);
 }
 
 /* inode metadata operations */

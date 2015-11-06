@@ -14,6 +14,15 @@
 #include "xlator.h"
 #include "super.h"
 
+/**
+ * Excapsulate the name metadata into our own structure and checksum it
+ * with crc32c, which is verified when metadata is read back.
+ */
+struct __attribute__ ((__packed__)) zfxattr_mdname {
+        struct mdname mdn;
+        uint32_t crc;
+};
+
 int32_t zfxattr_init (xlator_t *, const char *, struct md_namei_ops *);
 int32_t zfxattr_fini (xlator_t *, const char *);
 
