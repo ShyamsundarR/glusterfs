@@ -127,3 +127,38 @@ dht2_generate_nameless_loc (loc_t *dst, loc_t *src)
 err:
         return ret;
 }
+
+/**
+ * There need not be much difference between the source loc here. so, this
+ * routine just abstracts out loc_copy(). pass in a named loc (what you'd
+ * get from mkdir, creat, etc..) and get a ref'd copy. Later, in case name
+ * loc begs to be different that source, patch up things here..
+ */
+int
+dht2_generate_name_loc (loc_t *dst, loc_t *src)
+{
+        return loc_copy (dst, src);
+}
+
+/**
+ * prepare a "loc" that can be used by the icreate() file operation. This
+ * loc structure is special with the parent being root
+ */
+int32_t
+dht2_prepare_inode_loc (loc_t *dst, loc_t *src, uuid_t gfid)
+{
+        int ret = 0;
+
+        GF_VALIDATE_OR_GOTO ("xlator", dst, err);
+        GF_VALIDATE_OR_GOTO ("xlator", src, err);
+
+        ret = dht2_generate_nameless_loc (dst, src);
+        if (ret)
+                goto err;
+
+        gf_uuid_copy (dst->gfid, gfid);  /* use this gfid */
+        return 0;
+
+ err:
+        return -1;
+}
