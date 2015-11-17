@@ -155,6 +155,202 @@ bail:
         return 0;
 }
 
+int32_t
+dht2_namelink_cbk (call_frame_t *frame, void *cookie,
+                   xlator_t *this, int32_t op_ret, int32_t op_errno,
+                   struct iatt *prebuf, struct iatt *postbuf, dict_t *xdata)
+{
+        dht2_local_t *local = NULL;
+
+        if (op_ret < 0)
+                goto unwinderr;
+
+        local = frame->local;
+
+        DHT2_STACK_UNWIND (mkdir, frame,
+                           op_ret, op_errno, local->d2local_loc.inode,
+                           &local->d2local_stbuf, prebuf, postbuf, xdata);
+        return 0;
+
+ unwinderr:
+        DHT2_STACK_UNWIND (mkdir, frame,
+                           op_ret, op_errno, NULL, NULL, NULL, NULL, NULL);
+        return 0;
+}
+
+/**
+ * Tie knot between an inode and its name also known as "namelink". A namelink()
+ * fop is sent to the parent inode metadata server, thereby "linking" the
+ * inode [gfid] with a name entry.
+ */
+static int32_t
+dht2_do_namelink (call_frame_t *frame,
+                  xlator_t *this, dht2_conf_t *conf, dht2_local_t *local)
+{
+        int32_t ret = 0;
+        loc_t *loc = NULL;
+        loc_t wind_loc = {0, };
+        xlator_t *wind_subvol = NULL;
+
+        loc = &local->d2local_loc;
+
+        wind_subvol = dht2_find_subvol_for_gfid (conf, loc->parent->gfid,
+                                                 DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, EINVAL,
+                        DHT2_MSG_FIND_SUBVOL_ERROR, "Unable to find subvolume "
+                        "for GFID %s", loc->parent->gfid);
+                goto error_return;
+        }
+
+        ret = dht2_generate_name_loc (&wind_loc, loc);
+        if (ret)
+                goto error_return;
+
+        STACK_WIND (frame, dht2_namelink_cbk,
+                    wind_subvol, wind_subvol->fops->namelink,
+                    &wind_loc, local->d2local_xattr_req);
+        loc_wipe (&wind_loc);
+        return 0;
+
+ error_return:
+        return -1;
+}
+
+int32_t
+dht2_directory_inode_cbk (call_frame_t *frame,
+                          void *cookie, xlator_t *this,
+                          int32_t op_ret, int32_t op_errno,
+                          inode_t *inode, struct iatt *buf, dict_t *xdata)
+{
+        int32_t ret = 0;
+        dht2_conf_t *conf = NULL;
+        dht2_local_t *local = NULL;
+
+        if (op_ret < 0)
+                goto unwinderr;
+
+        conf = this->private;
+
+        local = frame->local;
+        local->d2local_stbuf = *buf;
+
+        ret = dht2_do_namelink (frame, this, conf, local);
+        if (ret)
+                goto unwinderr;
+        return 0;
+
+ unwinderr:
+        DHT2_STACK_UNWIND (mkdir, frame,
+                           op_ret, op_errno, NULL, NULL, NULL, NULL, NULL);
+        return 0;
+}
+
+static int32_t
+dht2_do_mkdir (call_frame_t *frame, xlator_t *this,
+               dht2_conf_t *conf, mode_t mode, mode_t umask, dict_t *xdata)
+{
+        int32_t       ret         = 0;
+        int32_t       op_errno    = EINVAL;
+        uuid_t        gfid        = {0,};
+        void         *uuidreq     = NULL;
+        loc_t         wind_loc    = {0,};
+        dht2_local_t *local       = NULL;
+        xlator_t     *wind_subvol = NULL;
+
+        local = frame->local;
+
+        ret = dict_get_ptr (local->d2local_xattr_req, "gfid-req", &uuidreq);
+        if (ret)
+                goto error_return;
+        gf_uuid_copy (gfid, uuidreq);
+
+        /**
+         * Use the GFID as-it-is as a source for randomness for MDS selection
+         */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, gfid, DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s", gfid);
+                goto error_return;
+        }
+
+        ret = dht2_prepare_inode_loc (&wind_loc, &local->d2local_loc, gfid);
+        if (ret)
+                goto error_return;
+
+        /* directory inode creation request */
+        STACK_WIND (frame, dht2_directory_inode_cbk,
+                    wind_subvol, wind_subvol->fops->icreate,
+                    &wind_loc, S_IFDIR | mode, local->d2local_xattr_req);
+        loc_wipe (&wind_loc);
+        return 0;
+
+ error_return:
+        return -op_errno;
+}
+
+/**
+ * Directories do not follow colocation stratergy which is heavily relied
+ * by other dentry opetations such as creat/mknod. Doing this would place
+ * the entire filesystem tree on one MDS -- fatal.
+ *
+ * Therefore, directory creations are treated specially: the inode of the
+ * directory is randomly placed in one of the MDS with the name "colocated"
+ * with it's parent pointing to it's inode remote MDS. lookup() is handled
+ * by catching EREMOTE and re-winding to the inode MDS, c.f. dht2_lookup().
+ *
+ * NOTE: As of now directory inode/name creation is driven by the client.
+ *       Later on, this should be taken care by the dht2 server component
+ *       [server component on the "name" MDS to be specific] and provide
+ *       crash consistency semantics, rollbacks, etc..
+ */
+int32_t
+dht2_mkdir (call_frame_t *frame, xlator_t *this,
+            loc_t *loc, mode_t mode, mode_t umask, dict_t *xdata)
+{
+        int32_t       ret         = 0;
+        dht2_conf_t  *conf        = NULL;
+        dht2_local_t *local       = NULL;
+        int32_t       op_errno    = EINVAL;
+
+        VALIDATE_OR_GOTO (frame, err);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (loc, err);
+        VALIDATE_OR_GOTO (loc->parent, err);
+
+        conf = this->private;
+        if (!conf)
+                goto err;
+        if (gf_uuid_is_null (loc->parent->gfid))
+                goto err;
+
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_MKDIR);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        local->d2local_xattr_req = dict_ref (xdata);
+        if (!local->d2local_xattr_req) {
+                op_errno = ENOMEM; /* should it? it just a ref */
+                goto err;
+        }
+
+        ret = dht2_do_mkdir (frame, this, conf, mode, umask, xdata);
+        if (ret < 0) {
+                op_errno = -ret;
+                goto err;
+        }
+        return 0;
+
+ err:
+        DHT2_STACK_UNWIND (mkdir, frame,
+                           -1, op_errno, NULL, NULL, NULL, NULL, NULL);
+        return 0;
+}
+
 int32_t dht2_lookup_cbk (call_frame_t *, void *, xlator_t *, int32_t , int32_t,
                 inode_t *, struct iatt *, dict_t *, struct iatt *);
 
@@ -186,7 +382,7 @@ dht2_lookup_remote_inode (call_frame_t *frame, xlator_t *this, inode_t *inode,
         }
 
         /* determine subvolume to wind lookup to */
-        wind_subvol = dht2_find_subvol_for_gfid (conf, buf->ia_gfid,
+          wind_subvol = dht2_find_subvol_for_gfid (conf, buf->ia_gfid,
                                                  DHT2_MDS_LAYOUT);
         if (!wind_subvol) {
                 op_errno = EINVAL;
@@ -503,7 +699,7 @@ struct xlator_fops fops = {
         .access         = dht2_access,
         .readlink       = dht2_readlink,
 /*        .mknod, */
-/*        .mkdir, */
+        .dht2_mkdir     = dht2_mkdir,
 /*        .unlink, */
 /*        .rmdir, */
 /*        .symlink        = dht2_symlink, */

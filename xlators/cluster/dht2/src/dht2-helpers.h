@@ -35,6 +35,7 @@ dht2_local_t *dht2_local_init (call_frame_t *, dht2_conf_t *, loc_t *, fd_t *,
                                glusterfs_fop_t);
 
 void dht2_local_wipe (xlator_t *, dht2_local_t *);
+int32_t dht2_prepare_inode_loc (loc_t *, loc_t *, uuid_t);
 
 #define DHT2_STACK_UNWIND(fop, frame, params ...) do {          \
                 dht2_local_t *__local = NULL;                    \
@@ -53,5 +54,6 @@ int dht2_iatt_merge (struct iatt *, struct iatt *);
 uint32_t gfid_to_bucket (uuid_t);
 
 int dht2_generate_nameless_loc (loc_t *, loc_t *);
+int dht2_generate_name_loc (loc_t *, loc_t *);
 
 #endif /* _DHT2_HELPERS_H_ */
