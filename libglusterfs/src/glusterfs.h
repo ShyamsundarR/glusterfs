@@ -254,6 +254,7 @@
 #define GF_BACKTRACE_LEN        4096
 #define GF_BACKTRACE_FRAME_COUNT 7
 
+#define GF_AUXILLARY_PARGFID  0xd
 
 /* NOTE: add members ONLY at the end (just before _MAXVALUE) */
 typedef enum {
@@ -307,6 +308,8 @@ typedef enum {
 	GF_FOP_DISCARD,
         GF_FOP_ZEROFILL,
         GF_FOP_IPC,
+        GF_FOP_ICREATE,
+        GF_FOP_NAMELINK,
         GF_FOP_MAXVALUE,
 } glusterfs_fop_t;
 

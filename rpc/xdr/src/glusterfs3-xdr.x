@@ -658,6 +658,32 @@ struct gfs3_ipc_rsp {
 	opaque  xdata<>;
 };
 
+struct gfs3_icreate_req {
+       opaque gfid[16];
+       unsigned int mode;
+       opaque xdata<>;
+};
+
+struct gfs3_icreate_rsp {
+       int op_ret;
+       int op_errno;
+       struct gf_iatt stat;
+       opaque xdata<>;
+};
+
+struct gfs3_namelink_req {
+       opaque pargfid[16];
+       string bname<>;
+       opaque xdata<>;
+};
+
+struct gfs3_namelink_rsp {
+       int op_ret;
+       int op_errno;
+       struct gf_iatt preparent;
+       struct gf_iatt postparent;
+       opaque xdata<>;
+};
 
  struct gf_setvolume_req {
         opaque dict<>;

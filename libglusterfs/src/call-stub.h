@@ -70,6 +70,8 @@ typedef struct {
 		fop_discard_t discard;
                 fop_zerofill_t zerofill;
                 fop_ipc_t ipc;
+                fop_icreate_t icreate;
+                fop_namelink_t namelink;
 	} fn;
 
 	union {
@@ -118,6 +120,8 @@ typedef struct {
 		fop_discard_cbk_t discard;
                 fop_zerofill_cbk_t zerofill;
                 fop_ipc_cbk_t ipc;
+                fop_icreate_cbk_t icreate;
+                fop_namelink_cbk_t namelink;
 	} fn_cbk;
 
 	struct {
@@ -743,6 +747,26 @@ fop_ipc_stub (call_frame_t *frame, fop_ipc_t fn, int32_t op, dict_t *xdata);
 call_stub_t *
 fop_ipc_cbk_stub (call_frame_t *frame, fop_ipc_cbk_t fn,
                   int32_t op_ret, int32_t op_errno, dict_t *xdata);
+
+call_stub_t *
+fop_icreate_stub (call_frame_t *frame, fop_icreate_t fn,
+                  loc_t *loc, mode_t mode, dict_t *xdata);
+
+call_stub_t *
+fop_namelink_stub (call_frame_t *frame,
+                   fop_namelink_t fn, loc_t *loc, dict_t *xdata);
+
+call_stub_t *
+fop_icreate_cbk_stub (call_frame_t *frame,
+                      fop_icreate_cbk_t fn,
+                      int32_t op_ret, int32_t op_errno,
+                      inode_t *inode, struct iatt *buf, dict_t *xdata);
+
+call_stub_t *
+fop_namelink_cbk_stub (call_frame_t *frame,
+                       fop_namelink_cbk_t fn,
+                       int32_t op_ret, int32_t op_errno,
+                       struct iatt *prebuf, struct iatt *postbuf, dict_t *xdata);
 
 
 void call_resume (call_stub_t *stub);
