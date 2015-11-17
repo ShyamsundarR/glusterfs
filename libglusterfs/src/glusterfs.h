@@ -256,6 +256,16 @@
 
 #define GF_AUXILLARY_PARGFID  0xd
 
+static inline int __is_auxilary_gfid (uuid_t u1)
+{
+        uuid_t u2;
+
+        memset (u2, 0, sizeof (uuid_t));
+        u2[15] = GF_AUXILLARY_PARGFID;
+
+        return !gf_uuid_compare (u1, u2);
+}
+
 /* NOTE: add members ONLY at the end (just before _MAXVALUE) */
 typedef enum {
         GF_FOP_NULL = 0,

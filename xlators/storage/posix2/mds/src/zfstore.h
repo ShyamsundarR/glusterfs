@@ -54,6 +54,8 @@ int32_t zfstore_flush (call_frame_t *, xlator_t *, fd_t *, dict_t *);
 int32_t zfstore_setattr (call_frame_t *, xlator_t *,
                          loc_t *, struct iatt *, int32_t, dict_t *);
 int32_t zfstore_stat (call_frame_t *, xlator_t *, loc_t *, dict_t *);
+int32_t zfstore_icreate (call_frame_t *, xlator_t *, loc_t *, mode_t, dict_t *);
+int32_t zfstore_namelink (call_frame_t *, xlator_t *, loc_t *, dict_t *);
 
 static inline struct mdoperations *zf_get_nameops (struct zfstore *zf)
 {
