@@ -92,6 +92,26 @@ zfstore_create_inode0x1 (xlator_t *this,
 }
 
 static int32_t
+zfstore_handle_auxlookup (call_frame_t *frame,
+                          xlator_t *this, loc_t *loc, uuid_t auxgfid)
+{
+        struct iatt auxbuf = {0,};
+
+        gf_uuid_copy (auxbuf.ia_gfid, auxgfid);
+
+        auxbuf.ia_type = IA_IFDIR;
+        auxbuf.ia_nlink = 1;
+        auxbuf.ia_uid = 0;
+        auxbuf.ia_gid = 0;
+
+        posix2_fill_ino_from_gfid (this, &auxbuf);
+
+        STACK_UNWIND_STRICT (lookup, frame,
+                             0, 0, loc->inode, &auxbuf, NULL, NULL);
+        return 0;
+}
+
+static int32_t
 zfstore_nameless_lookup (call_frame_t *frame,
                          xlator_t *this, struct zfstore *zf, loc_t *loc)
 {
@@ -109,6 +129,9 @@ zfstore_nameless_lookup (call_frame_t *frame,
                 gf_uuid_copy (tgtuuid, loc->gfid);
         else
                 gf_uuid_copy (tgtuuid, loc->inode->gfid);
+
+        if (__is_auxilary_gfid (tgtuuid))
+                return zfstore_handle_auxlookup (frame, this, loc, tgtuuid);
 
         errno = EINVAL;
         entrylen = zfstore_make_handle (this, export, tgtuuid, entry, entrylen);
@@ -353,5 +376,108 @@ zfstore_create (call_frame_t *frame,
  unwind_err:
         STACK_UNWIND_STRICT (create, frame,
                              -1, errno, fd, loc->inode, NULL, NULL, NULL, NULL);
+        return 0;
+}
+
+int32_t
+zfstore_namelink (call_frame_t *frame,
+                  xlator_t *this, loc_t *loc, dict_t *xdata)
+{
+        int32_t         ret     = 0;
+        uuid_t          gfid    = {0,};
+        void           *uuidreq = NULL;
+        void           *parpath = NULL;
+        int             parlen  = 0;
+        char           *export  = NULL;
+        struct iatt     prebuf  = {0,};
+        struct iatt     postbuf = {0,};
+        struct zfstore *zf      = NULL;
+
+        zf = posix2_get_store (this);
+        export = zf->exportdir;
+
+        errno = EINVAL;
+        ret = dict_get_ptr (xdata, "gfid-req", &uuidreq);
+        if (ret)
+                goto unwind_err;
+        gf_uuid_copy (gfid, uuidreq);
+
+        parlen = zfstore_handle_length (export);
+        parpath = alloca (parlen);
+
+        /* parent handle */
+        parlen = zfstore_make_handle (this, export,
+                                  loc->pargfid, parpath, parlen);
+        if (parlen <= 0)
+                goto unwind_err;
+
+        /* parent prebuf */
+        ret = zfstore_resolve_inodeptr
+                       (this, zf, loc->pargfid, parpath, &prebuf, _gf_true);
+        if (ret)
+                goto unwind_err;
+
+        ret = zfstore_link_inode (this, zf, parpath, loc->name, gfid);
+        if (ret)
+                goto unwind_err;
+
+        /* parent postbuf */
+        ret = zfstore_resolve_inodeptr
+                       (this, zf, loc->pargfid, parpath, &postbuf, _gf_true);
+        if (ret)
+                goto unwind_err;
+
+        STACK_UNWIND_STRICT (namelink, frame, 0, 0, &prebuf, &postbuf, NULL);
+        return 0;
+
+ unwind_err:
+        STACK_UNWIND_STRICT (namelink, frame, -1, errno, NULL, NULL, NULL);
+        return 0;
+}
+
+int32_t
+zfstore_icreate (call_frame_t *frame,
+                 xlator_t *this, loc_t *loc, mode_t mode, dict_t *xdata)
+{
+        int32_t         ret      = 0;
+        uuid_t          gfid     = {0,};
+        void           *uuidreq  = NULL;
+        int             entrylen = 0;
+        char           *entry    = NULL;
+        char           *export   = NULL;
+        struct iatt     stbuf    = {0,};
+        struct zfstore *zf       = NULL;
+
+        zf = posix2_get_store (this);
+        export = zf->exportdir;
+
+        errno = EINVAL;
+        ret = dict_get_ptr (xdata, "gfid-req", &uuidreq);
+        if (ret)
+                goto unwind_err;
+        gf_uuid_copy (gfid, uuidreq);
+
+        entrylen = zfstore_handle_length (export);
+        entry = alloca (entrylen);
+
+        entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
+        if (entrylen <= 0)
+                goto unwind_err;
+
+        ret = zfstore_create_inode (this, zf, entry, 0, mode);
+        if (ret)
+                goto unwind_err;
+
+        ret = zfstore_resolve_inodeptr (this, zf,
+                                        gfid, entry, &stbuf, _gf_false);
+        if (ret)
+                goto purge_entry;
+
+        STACK_UNWIND_STRICT (icreate, frame, 0, 0, loc->inode, &stbuf, NULL);
+        return 0;
+
+ purge_entry:
+ unwind_err:
+        STACK_UNWIND_STRICT (icreate, frame, -1, errno, NULL, NULL, NULL);
         return 0;
 }

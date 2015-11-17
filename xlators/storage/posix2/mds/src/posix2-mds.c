@@ -242,18 +242,50 @@ posix2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 
 }
 
+int32_t
+posix2_icreate (call_frame_t *frame,
+                xlator_t *this, loc_t *loc, mode_t mode, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->icreate)
+                return handle->storeops->icreate (frame, this,
+                                                  loc, mode, xdata);
+
+        STACK_UNWIND_STRICT (icreate, frame,
+                             -1, ENOTSUP, NULL, NULL, NULL);
+        return 0;
+}
+
+int32_t
+posix2_namelink (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->namelink)
+                return handle->storeops->namelink (frame, this, loc, xdata);
+
+        STACK_UNWIND_STRICT (namelink, frame,
+                             -1, ENOTSUP, NULL, NULL, NULL);
+        return 0;
+}
+
 class_methods_t class_methods = {
         .init = posix2_init,
         .fini = posix2_fini,
 };
 
 struct xlator_fops fops = {
-        .lookup  = posix2_lookup,
-        .create  = posix2_create,
-        .open    = posix2_open,
-        .flush   = posix2_flush,
-        .setattr = posix2_setattr,
-        .stat    = posix2_stat,
+        .lookup   = posix2_lookup,
+        .create   = posix2_create,
+        .open     = posix2_open,
+        .icreate  = posix2_icreate,
+        .namelink = posix2_namelink,
+        .flush    = posix2_flush,
+        .setattr  = posix2_setattr,
+        .stat     = posix2_stat,
 };
 
 struct xlator_cbks cbks = {
