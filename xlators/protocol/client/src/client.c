@@ -1930,6 +1930,59 @@ out:
 	return 0;
 }
 
+int32_t
+client_namelink (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
+{
+        int32_t               ret  = -1;
+        clnt_conf_t          *conf = NULL;
+        clnt_args_t           args = {0,};
+        rpc_clnt_procedure_t *proc = NULL;
+
+        conf = this->private;
+        if (!conf || !conf->fops || !conf->handshake)
+                goto out;
+
+        args.loc = loc;
+        args.xdata = xdata;
+
+        proc = &conf->fops->proctable[GF_FOP_NAMELINK];
+        if (proc->fn)
+                ret = proc->fn (frame, this, &args);
+
+ out:
+        if (ret)
+                STACK_UNWIND_STRICT (namelink, frame,
+                                     -1, EINVAL, NULL, NULL, NULL);
+        return 0;
+}
+
+int32_t
+client_icreate (call_frame_t *frame,
+                xlator_t *this, loc_t *loc, mode_t mode, dict_t *xdata)
+{
+        int32_t               ret  = -1;
+        clnt_conf_t          *conf = NULL;
+        clnt_args_t           args = {0,};
+        rpc_clnt_procedure_t *proc = NULL;
+
+        conf = this->private;
+        if (!conf || !conf->fops || !conf->handshake)
+                goto out;
+
+        args.loc   = loc;
+        args.mode  = mode;
+        args.xdata = xdata;
+
+        proc = &conf->fops->proctable[GF_FOP_ICREATE];
+        if (proc->fn)
+                ret = proc->fn (frame, this, &args);
+
+ out:
+        if (ret)
+                STACK_UNWIND_STRICT (icreate, frame,
+                                     -1, EINVAL, NULL, NULL, NULL);
+        return 0;
+}
 
 int
 client_mark_fd_bad (xlator_t *this)
@@ -2670,52 +2723,54 @@ struct xlator_cbks cbks = {
 };
 
 struct xlator_fops fops = {
-        .stat        = client_stat,
-        .readlink    = client_readlink,
-        .mknod       = client_mknod,
-        .mkdir       = client_mkdir,
-        .unlink      = client_unlink,
-        .rmdir       = client_rmdir,
-        .symlink     = client_symlink,
-        .rename      = client_rename,
-        .link        = client_link,
-        .truncate    = client_truncate,
-        .open        = client_open,
-        .readv       = client_readv,
-        .writev      = client_writev,
-        .statfs      = client_statfs,
-        .flush       = client_flush,
-        .fsync       = client_fsync,
-        .setxattr    = client_setxattr,
-        .getxattr    = client_getxattr,
-        .fsetxattr   = client_fsetxattr,
-        .fgetxattr   = client_fgetxattr,
-        .removexattr = client_removexattr,
+        .stat         = client_stat,
+        .readlink     = client_readlink,
+        .mknod        = client_mknod,
+        .mkdir        = client_mkdir,
+        .unlink       = client_unlink,
+        .rmdir        = client_rmdir,
+        .symlink      = client_symlink,
+        .rename       = client_rename,
+        .link         = client_link,
+        .truncate     = client_truncate,
+        .open         = client_open,
+        .readv        = client_readv,
+        .writev       = client_writev,
+        .statfs       = client_statfs,
+        .flush        = client_flush,
+        .fsync        = client_fsync,
+        .setxattr     = client_setxattr,
+        .getxattr     = client_getxattr,
+        .fsetxattr    = client_fsetxattr,
+        .fgetxattr    = client_fgetxattr,
+        .removexattr  = client_removexattr,
         .fremovexattr = client_fremovexattr,
-        .opendir     = client_opendir,
-        .readdir     = client_readdir,
-        .readdirp    = client_readdirp,
-        .fsyncdir    = client_fsyncdir,
-        .access      = client_access,
-        .ftruncate   = client_ftruncate,
-        .fstat       = client_fstat,
-        .create      = client_create,
-        .lk          = client_lk,
-        .inodelk     = client_inodelk,
-        .finodelk    = client_finodelk,
-        .entrylk     = client_entrylk,
-        .fentrylk    = client_fentrylk,
-        .lookup      = client_lookup,
-        .rchecksum   = client_rchecksum,
-        .xattrop     = client_xattrop,
-        .fxattrop    = client_fxattrop,
-        .setattr     = client_setattr,
-        .fsetattr    = client_fsetattr,
-	.fallocate   = client_fallocate,
-	.discard     = client_discard,
-        .zerofill    = client_zerofill,
-        .getspec     = client_getspec,
-        .ipc         = client_ipc,
+        .opendir      = client_opendir,
+        .readdir      = client_readdir,
+        .readdirp     = client_readdirp,
+        .fsyncdir     = client_fsyncdir,
+        .access       = client_access,
+        .ftruncate    = client_ftruncate,
+        .fstat        = client_fstat,
+        .create       = client_create,
+        .lk           = client_lk,
+        .inodelk      = client_inodelk,
+        .finodelk     = client_finodelk,
+        .entrylk      = client_entrylk,
+        .fentrylk     = client_fentrylk,
+        .lookup       = client_lookup,
+        .rchecksum    = client_rchecksum,
+        .xattrop      = client_xattrop,
+        .fxattrop     = client_fxattrop,
+        .setattr      = client_setattr,
+        .fsetattr     = client_fsetattr,
+	.fallocate    = client_fallocate,
+	.discard      = client_discard,
+        .zerofill     = client_zerofill,
+        .getspec      = client_getspec,
+        .ipc          = client_ipc,
+        .icreate      = client_icreate,
+        .namelink     = client_namelink,
 };
 
 

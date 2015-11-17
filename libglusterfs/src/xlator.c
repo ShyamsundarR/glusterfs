@@ -80,6 +80,8 @@ fill_defaults (xlator_t *xl)
 	SET_DEFAULT_FOP (discard);
         SET_DEFAULT_FOP (zerofill);
         SET_DEFAULT_FOP (ipc);
+        SET_DEFAULT_FOP (icreate);
+        SET_DEFAULT_FOP (namelink);
 
         SET_DEFAULT_FOP (getspec);
 

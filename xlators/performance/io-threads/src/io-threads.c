@@ -338,6 +338,8 @@ iot_schedule (call_frame_t *frame, xlator_t *this, call_stub_t *stub)
         case GF_FOP_GETSPEC:
                 break;
         case GF_FOP_IPC:
+        case GF_FOP_ICREATE:
+        case GF_FOP_NAMELINK:
         default:
                 return -EINVAL;
         }

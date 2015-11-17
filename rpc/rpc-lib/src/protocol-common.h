@@ -60,6 +60,8 @@ enum gf_fop_procnum {
 	GFS3_OP_DISCARD,
         GFS3_OP_ZEROFILL,
         GFS3_OP_IPC,
+        GFS3_OP_ICREATE,
+        GFS3_OP_NAMELINK,
         GFS3_OP_MAXVALUE,
 } ;
 

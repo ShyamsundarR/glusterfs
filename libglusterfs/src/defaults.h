@@ -288,6 +288,11 @@ int32_t default_zerofill(call_frame_t *frame,
 int32_t default_ipc (call_frame_t *frame, xlator_t *this, int32_t op,
                      dict_t *xdata);
 
+int32_t default_icreate (call_frame_t *frame, xlator_t *this,
+                         loc_t *loc, mode_t mode, dict_t *xdata);
+
+int32_t default_namelink (call_frame_t *frame,
+                          xlator_t *this, loc_t *loc, dict_t *xdata);
 
 /* Resume */
 int32_t default_getspec_resume (call_frame_t *frame,
@@ -520,6 +525,11 @@ int32_t default_zerofill_resume(call_frame_t *frame,
 int32_t default_ipc_resume (call_frame_t *frame, xlator_t *this,
                             int32_t op, dict_t *xdata);
 
+int32_t default_icreate_resume (call_frame_t *frame, xlator_t *this,
+                                loc_t *loc, mode_t mode, dict_t *xdata);
+
+int32_t default_namelink_resume (call_frame_t *frame,
+                                 xlator_t *this, loc_t *loc, dict_t *xdata);
 
 /* _cbk_resume */
 
@@ -787,6 +797,16 @@ int32_t default_zerofill_cbk_resume (call_frame_t * frame, void *cookie,
                                      int32_t op_errno, struct iatt *pre,
                                      struct iatt *post, dict_t * xdata);
 
+int32_t default_icreate_cbk_resume (call_frame_t *frame,
+                                    void *cookie, xlator_t *this,
+                                    int32_t op_ret, int32_t op_errno,
+                                    inode_t *inode, struct iatt *buf, dict_t *xdata);
+
+int32_t default_namelink_cbk_resume (call_frame_t *frame, void *cookie,
+                                     xlator_t *this, int32_t op_ret,
+                                     int32_t op_errno, struct iatt *prebuf,
+                                     struct iatt *postbuf, dict_t *xdata);
+
 int32_t
 default_getspec_cbk_resume (call_frame_t * frame, void *cookie,
                             xlator_t * this, int32_t op_ret, int32_t op_errno,
@@ -1016,6 +1036,16 @@ int32_t default_zerofill_cbk(call_frame_t *frame, void *cookie, xlator_t *this,
 int32_t default_ipc_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
                          int32_t op_ret, int32_t op_errno, dict_t *xdata);
 
+int32_t default_icreate_cbk (call_frame_t *frame,
+                             void *cookie, xlator_t *this,
+                             int32_t op_ret, int32_t op_errno,
+                             inode_t *inode, struct iatt *buf, dict_t *xdata);
+
+int32_t default_namelink_cbk (call_frame_t *frame,void *cookie,
+                              xlator_t *this, int32_t op_ret,
+                              int32_t op_errno, struct iatt *prebuf,
+                              struct iatt *postbuf, dict_t *xdata);
+
 int32_t
 default_getspec_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
                      int32_t op_ret, int32_t op_errno, char *spec_data);
@@ -1156,6 +1186,12 @@ default_zerofill_failure_cbk (call_frame_t *frame, int32_t op_errno);
 
 int32_t
 default_getspec_failure_cbk (call_frame_t *frame, int32_t op_errno);
+
+int32_t
+default_icreate_failure_cbk (call_frame_t *frame, int32_t op_errno);
+
+int32_t
+default_namelink_failure_cbk (call_frame_t *frame, int32_t op_errno);
 
 int32_t
 default_mem_acct_init (xlator_t *this);
