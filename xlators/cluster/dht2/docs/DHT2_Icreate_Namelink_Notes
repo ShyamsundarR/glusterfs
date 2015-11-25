@@ -1,0 +1,60 @@
+With some pain in introducing new file operations to support mkdir(), I though of gathering
+some notes and sending it across.
+
+icreate()
+At first icreate() looked pretty simple, with the following structure going over the wire:
+
+struct gfs3_icreate_req {
+       opaque gfid[16];
+       unsigned int flags;
+       unsigned int mode;
+       opaque xdata<>;
+};
+
+Server resolver interprets this as a pure gfid based operation due to absence of pargfid and
+outright rejects this request with ESTALE due a negative lookup in case the inode didn't exist
+(which is most probably the scenario). A logical thing to do here was to add pargfid from
+client, but that would too not make any sense as the parent would probably not exist in the
+inode mds (e.g. mkdir(), where inode and name exist on different mds'es), with server resolver
+returning ENOENT.
+
+So, the RPC still remains the same, but in server we link the (in memory) inode against a virtual
+parent [GFID: 0xd, gfid-access folks would be aware of this]. The main difference here being that
+client does not know about this, and it shouldn't as for the client, the entry should be linked
+against the "actual" parent. Therefore, in the mds server "holding" just the inodes and not name
+entry (i.e., no co-location), there would be a linked inode [0xd] in the inode table without a
+parent and a bunch of linked inodes linked to 0xd as parent as shown below:
+
+[INODE: 0xd]
+          |    |    |_____   [INODE: name:<gfid:I1>, GFID: I1]
+          |    |___________  [INODE: name:<gfid:I2>, GFID: I2]
+          |_________________ [INODE: name:<gfid:I3>, GFID: I3]
+
+The required change was to handle nameless lookup() of the virtual inode in posix2.
+
+namelink()
+
+On the wire this looks like:
+
+struct gfs3_namelink_req {
+       opaque pargfid[16];
+       string name<>;
+       unsigned int flags;
+       opaque xdata<>;
+};
+
+This was much more logical in the sense that the parent for name entry is located on the same mds,
+but since the inode is not colocated, there's no stat buffer (iatt) to link the inode with its
+parent. So, namelink doesn't links the inode altogether, which is ok, as operations such as stat()
+would be sent to it's inode mds.
+
+NOTE:
+What's might be a bit interesting are the inode/name creation flags that are passed to these fops.
+Take the case of mkdir() where dht2 would wind ->icreate() to (say) mds1 and ->namelink() to mds2:
+What hapens when two mkdir() calls race, which implies two ->icreate() fops try to create the inode
+with different inode numbers, but only one should succeed with ->namelink(). For directory creation
+operation flags do not matter, but when the inode to be created is a regular file, there might be
+various checks depending upon flags.
+
+As of now, neither ->icreate() nor ->namelink() use flags and is not even sent over the wire. We
+may need to add this as and when required.
