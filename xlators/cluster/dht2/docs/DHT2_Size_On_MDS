@@ -1,0 +1,106 @@
+DHT2 Size On MDS
+================
+
+The purpose of this document is to describe the how size of obejcts is maintained
+and updated in a DHT2 cluster. With DHT2, object metadata lives on a separate set
+of servers than the object data. This segregates metadata and data IO traffic
+providing full disk bandwidth for each class. Object metadata include mode, user
+ID, group ID, size, {a,c,m}time and various other attributes. Higer level xlators
+can choose to store (and later retrieve) additional metadata for their operation.
+Object metadata itself is maintained by POSIX2 which is responsible for data and
+metadata storage in its own format. POSIX2 forms the lowest layer of the xlator
+stack.
+
+Object data & metadata relations
+================================
+A subset of object metadata is not effected (or dependent) when the objects data
+is modified. Metadata such as uid, gid, harlink count, device ID, inode number,
+mode (etc..) have no effect when the object data is access/modified, but rather
+have interfaces (syscalls) to modify them. The other (more interesting) set of
+metadata that gets effected upon data modification are size, ctime, mtime, used
+blocks (Note that ctime/mtime can also be [directly] changed by using syscalls
+such as utimes(), thereby falling under both category). This document refers
+these two categories as Class-I and Class-II metadata respectively.
+
+The second category of metadata needs proper coordination between the data and
+metadata (sub)cluster during updation. This brings about a series of design
+considerations that are required to preserve correct operation of fops and more
+importantly not degrade performance of general (and specific) workloads.
+
+Metadata split
+==============
+Updating Class-II metadata upon every data operation (e.g., an extending write()
+call, needs the updated size/mtime to be reflected in the inode) would chew away
+filesystem performance. Futhermore, this raises the question of "who" updates
+the size/mtime anyway? Let's analyze..
+
+[
+    From here on in this document, metadata would refer to Class-II metadata
+    unless explicitly specified.
+]
+
+Updating metadata "synchronously" after each successful data modification will
+degrade filesystem performance irrespective of whoever takes charge of updating
+the metadata cluster. Each data operation essentially becomes a data followed
+by a metadata operation, hence limitng scale. Performing metadata updations
+asynchronously (and proabably batching them) results in stale metadata to be
+served out of MDS and in most cases it breaks POSIX - e.g., an extending write()
+followed by stat() on the inode would in most cases provide stale (incorrect)
+object size.
+
+A rather widely used mechanism to readily solve the above mentioned issue is
+to _not_ keep size (and other class-II metadata) on the mds, but rather have
+those stored on the data server cluster itself either as the "actual" size
+of the data object as reported by the underlying filesysten (if the file is
+not chunked) or stored separately elsewhere, e.g., in the very first chunk
+amongst the set of N chunks. Either way, since the mds need not be updated
+upon every data operation, this gives us at least 50% improvement in the
+IO path as compared to the older scheme. However, this does not come for
+free - fetching inode attribute now involes aggregating "parts" of inode
+information from the mds and ds. This isn't much of a problem as calls to
+the mds and ds can be made in parallel. The caller needs to wait for the
+slowest before it can respond back to the client. This is probably ok for
+small number of stat() calls, but does not scale well for readdir+ workloads
+or huge number of parallel stat() operations.
+
+Size on MDS
+===========
+Storing size on MDS (and other class-II metadata) enables the complete inode
+to be fetched without querying it's ds counterpart. The idea is to keep the
+mds as a fast cache for class-II metadata (and class-I obviously), but fetch
+the class-II inode attributes only if the inode is under data modification
+or the mds information is still not refreshed from the ds (after close()).
+If an inode has at least one open file descriptor that was open()'d for
+modification (O_WRONLY, O_RDWR), the class-II metadata part for this inode
+is considered stale and therfore these attributes are fetched from the ds.
+
+Now what happens when the client is done using this file descriptor (probably
+after performing a bunch of write() calls) and issues close(). The mds updates
+the inode with fresh class-II inode attributes from the ds, after which the
+inode is considered fresh and can be trusted to server fresh inode attribute
+information for stat and readdir+. Note that, the inode is considered "stale"
+even after the file descriptor is closed (or more appropriately there are not
+writable file descriptors) and before the mds can update the fresh class-II
+inode attributes from the ds. In this window, attribute fetches still need to
+be aggregated from the mds and ds.
+
+The above scheme should give good improvement for readdir+ workloads when just
+a handfull of files (or none) are under modification in a given directory. The
+inode attributes need to "patched" from the ds just for those files. Moreover,
+with clever control of d_off one could even delay returning these entries till
+they are fetched (asynchronously) from the ds, thereby, serving next readdir+
+request for the given directory.
+
+TODO: how would anonymous fd operations would fit into this model?
+
+Implementaion considerations
+============================
+
+* Request splitting (to the ds) should be done by server component of DHT2
+
+* To avoid storing the inode state (stale/fresh) on-disk, the inode should
+  be pinned in memory until the mds refreshes itself from the ds.
+
+* Cache size on DHT2 server (component) after acquiring lease for the inode
+
+* POSIX2 maintains write-through cache for inode updations
