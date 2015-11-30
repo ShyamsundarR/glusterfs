@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5ac4a560_d9e2d7d4",
+        "filename": "xlators/cluster/dht2/docs/DHT2_Size_On_MDS",
+        "patchSetId": 2
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-11-30T12:35:40Z",
+      "side": 1,
+      "message": "NOTE: utimes() doesn\u0027t modify ctime (only {a,m}time).",
+      "revId": "e4d7402c11573f06f622812d045e16fe5dfc9cfc",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
