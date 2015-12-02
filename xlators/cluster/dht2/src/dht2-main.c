@@ -24,6 +24,137 @@
 /* xlator FOP entry and cbk functions */
 /* TODO: FOPs would possibly go into their own .c files based on grouping */
 
+int32_t
+dht2_create_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
+                 int32_t op_ret, int32_t op_errno, fd_t *fd, inode_t *inode,
+                 struct iatt *buf, struct iatt *preparent,
+                 struct iatt *postparent, dict_t *xdata)
+{
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+
+        /* on success, or unhandled failures, unwind */
+        if (!op_ret || (op_ret != 0 && op_errno != EREMOTE)) {
+                DHT2_STACK_UNWIND (create, frame, op_ret, op_errno, fd, inode,
+                                   buf, preparent, postparent, xdata);
+                return 0;
+        }
+
+        /* TODO: We need to handle the EREMOTE case, so for now the
+         * unhandled part is just maintained as an sepcial exception */
+        /* (op_errno == EREMOTE)) */
+        DHT2_STACK_UNWIND (create, frame, op_ret, op_errno, fd, inode,
+                           buf, preparent, postparent, xdata);
+bail:
+        return 0;
+}
+
+/* DHT2 Create:
+ * Create has 4 cases that it can end up with based on what the creat flags are,
+ * - Success cases
+ *  1: Created and opened (O_CREAT | O_EXCL)
+ *  2: Exists and opened (O_CREAT & !O_EXCL)
+ * - Failed cases
+ *  3: EEXIST, where flags had O_EXCL
+ *  4: EREMOTE, where flags had !O_EXCL
+ *  - EOTHER, any other error, which we do not handle
+ *
+ * 1/2/3: We can just unwind with the results.
+ * 4: This marks an interesting case where races need to be handled. We get the
+ * GFID of the file that exists, now this needs to be opened (not created) at
+ * the inode location. Before this open completes, an unlink can remove the file
+ * in such cases to adhere to POSIX creat (or open with O_CREAT flags) we need
+ * to run the create again.
+ * This problem of EREMOTE is not handled yet. Further, this transaction, of
+ * finding the name to exist and the race between this event and the open at
+ * the remote location, will be handled by a server side DHT2-orchestrator
+ * xlator.
+ */
+int32_t
+dht2_create (call_frame_t *frame, xlator_t *this, loc_t *loc, int32_t flags,
+             mode_t mode, mode_t umask, fd_t *fd, dict_t *xdata)
+{
+        int              ret = -1;
+        dht2_conf_t     *conf = NULL;
+        dht2_local_t    *local = NULL;
+        int32_t          op_errno = 0;
+        xlator_t        *wind_subvol = NULL;
+        uuid_t           gfid_req;
+
+        VALIDATE_OR_GOTO (frame, bail);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (loc, err);
+        VALIDATE_OR_GOTO (loc->parent, err);
+
+        conf = this->private;
+        if (!conf)
+                goto err;
+
+        if (gf_uuid_is_null (loc->parent->gfid)) {
+                op_errno = EINVAL;
+                goto err;
+        }
+
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_CREATE);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        /* determine subvolume to wind to */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, loc->parent->gfid,
+                                                 DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        uuid_utoa (loc->parent->gfid));
+                goto err;
+        }
+
+        if (xdata) {
+                local->d2local_xattr_req = dict_ref (xdata);
+        } else {
+                local->d2local_xattr_req = dict_new ();
+        }
+        if (local->d2local_xattr_req == NULL) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        /* fill in gfid-req for entry creation, to colocate file inode with the
+         * parent */
+        dht2_generate_uuid_with_constraint (gfid_req, loc->parent->gfid);
+        gf_msg (this->name, GF_LOG_DEBUG, 0, 0,
+                "UUID: [%s] winding to subvol: [%s]",
+                uuid_utoa (gfid_req), wind_subvol->name);
+
+        /* TODO: gfid-req is something other parts of the code use as well. Need
+         * to understand how this would work, when we overwrite the same with
+         * our requested GFID */
+        /* Assumption: POSIX2 would look at this xattr to use the same for the
+         * to be created object GFID. This is set from the client as the client
+         * has the knowledge of the layouts */
+        ret = dict_set_static_bin (local->d2local_xattr_req, "gfid-req",
+                                   gfid_req, 16);
+        if (ret) {
+                errno = ENOMEM;
+                goto err;
+        }
+
+        /* wind call to subvolume */
+        STACK_WIND (frame, dht2_create_cbk,
+                    wind_subvol, wind_subvol->fops->create,
+                    loc, flags, mode, umask, fd, local->d2local_xattr_req);
+
+        return 0;
+err:
+        DHT2_STACK_UNWIND (create, frame, -1, op_errno, NULL, NULL, NULL,
+                           NULL, NULL, NULL);
+bail:
+        return 0;
+}
+
 int32_t dht2_lookup_cbk (call_frame_t *, void *, xlator_t *, int32_t , int32_t,
                 inode_t *, struct iatt *, dict_t *, struct iatt *);
 
@@ -362,7 +493,8 @@ class_methods_t class_methods = {
 };
 
 struct xlator_fops fops = {
-        .lookup = dht2_lookup
+        .lookup = dht2_lookup,
+        .create = dht2_create
 };
 
 struct xlator_cbks cbks = {
