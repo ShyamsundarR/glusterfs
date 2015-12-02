@@ -19,6 +19,7 @@
 #include "common-utils.h"
 #include "xlator.h"
 #include "dht2-mem-types.h"
+#include "dht2-autogen-fops.h"
 
 #define DHT2_MSG_DOM "dht2"
 #define DHT_EREMOTE_XATTR_STR "eremote"

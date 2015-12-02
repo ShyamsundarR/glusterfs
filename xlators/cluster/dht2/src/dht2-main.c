@@ -490,18 +490,82 @@ out:
 class_methods_t class_methods = {
         .init           = dht2_init,
         .fini           = dht2_fini,
+/*      .reconfigure,
+        .notify */
 };
 
 struct xlator_fops fops = {
-        .lookup = dht2_lookup,
-        .create = dht2_create
+        .lookup         = dht2_lookup,
+        .stat           = dht2_stat,
+        .fstat          = dht2_fstat,
+        .truncate       = dht2_truncate,
+        .ftruncate      = dht2_ftruncate,
+        .access         = dht2_access,
+        .readlink       = dht2_readlink,
+/*        .mknod, */
+/*        .mkdir, */
+/*        .unlink, */
+/*        .rmdir, */
+/*        .symlink        = dht2_symlink, */
+/*        .rename; */
+/*        .link; */
+        .create         = dht2_create,
+        .open           = dht2_open,
+/*        .readv, */
+/*        .writev, */
+        .flush          = dht2_flush,
+/*        .fsync, */
+/*        .opendir, */
+/*        .readdir, */
+        .readdirp       = dht2_readdirp,
+/*        .fsyncdir, */
+/*        .statfs, */
+        .setxattr       = dht2_setxattr,
+        .getxattr       = dht2_getxattr,
+        .fsetxattr      = dht2_fsetxattr,
+        .fgetxattr      = dht2_fgetxattr,
+        .removexattr    = dht2_removexattr,
+        .fremovexattr   = dht2_fremovexattr,
+        .lk             = dht2_lk,
+        .inodelk        = dht2_inodelk,
+        .finodelk       = dht2_finodelk,
+        .entrylk        = dht2_entrylk,
+        .fentrylk       = dht2_fentrylk,
+        .rchecksum      = dht2_rchecksum,
+        .xattrop        = dht2_xattrop,
+        .fxattrop       = dht2_fxattrop,
+        .setattr        = dht2_setattr,
+        .fsetattr       = dht2_fsetattr,
+        .getspec        = dht2_getspec,
+        .fallocate      = dht2_fallocate,
+        .discard        = dht2_discard,
+        .zerofill       = dht2_zerofill,
+        .ipc            = dht2_ipc
 };
 
 struct xlator_cbks cbks = {
+/*        .forget,
+        .release,
+        .releasedir,
+        .invalidate
+        .client_destroy,
+        .client_disconnect,
+        .ictxmerge*/
 };
 
 /*
 struct xlator_dumpops dumpops = {
+        .priv,
+        .inode,
+        .fd,
+        .inodectx,
+        .fdctx,
+        .priv_to_dict,
+        .node_to_dict,
+        .fd_to_dict,
+        .inodectx_to_dict,
+        .fdctx_to_dict,
+        .history
 };
 */
 
