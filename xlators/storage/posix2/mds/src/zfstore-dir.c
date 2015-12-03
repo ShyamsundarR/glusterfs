@@ -481,3 +481,27 @@ zfstore_icreate (call_frame_t *frame,
         STACK_UNWIND_STRICT (icreate, frame, -1, errno, NULL, NULL, NULL);
         return 0;
 }
+
+int32_t
+zfstore_opendir (call_frame_t *frame, xlator_t *this,
+                 loc_t *loc, fd_t *fd, dict_t *xdata)
+{
+        int32_t         ret = 0;
+        struct zfstore *zf = NULL;
+
+        zf = posix2_get_store (this);
+
+        errno = EINVAL;
+
+        ret = zfstore_open_inode (this, zf->exportdir, loc->gfid, fd,
+                                  O_DIRECTORY);
+        if (ret)
+                goto unwind_err;
+
+        STACK_UNWIND_STRICT (opendir, frame, 0, 0, fd, NULL);
+        return 0;
+
+ unwind_err:
+        STACK_UNWIND_STRICT (opendir, frame, -1, errno, fd, NULL);
+        return 0;
+}

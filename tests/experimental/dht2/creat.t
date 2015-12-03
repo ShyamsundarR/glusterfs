@@ -27,6 +27,20 @@ TEST touch $M0/f{0..300}
 # stat() check
 TEST stat $M0/f{0..300}
 
+# mkdir test
+TEST mkdir $M0/d{0..10}
+
+# setattr test
+chmod 777 $M0/f{0..10}
+chown 1234 $M0/d{1..10}
+
+# nested directories and files
+TEST mkdir -p $M0/D1/D2/D3/D4
+TEST touch $M0/D1/F1
+TEST touch $M0/D1/D2/F2
+TEST touch $M0/D1/D2/D3/F3
+TEST touch $M0/D1/D2/D3/D4/F4
+
 # NOTE: no umoun test as there's a segfault due to missing statfs() implementation
 #       in posix, v2.
 # TEST umount $M0

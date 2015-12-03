@@ -16,12 +16,14 @@
 
 /* TODO: DIR *, O_DIRECT */
 struct posix2_fd {
-        int fd;
-        int32_t flags;
+        int      fd;
+        DIR     *dirfd;
+        int32_t  flags;
 };
 
 int32_t posix2_lookup_is_nameless (loc_t *);
 void posix2_fill_ino_from_gfid (xlator_t *, struct iatt *);
 int32_t posix2_save_openfd (xlator_t *, fd_t *, int, int32_t);
+int32_t posix2_release_openfd (xlator_t *this, fd_t *fd);
 
 #endif /* __POSIX2_H__ */

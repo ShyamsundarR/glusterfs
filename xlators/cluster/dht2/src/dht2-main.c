@@ -711,7 +711,7 @@ struct xlator_fops fops = {
 /*        .writev, */
         .flush          = dht2_flush,
 /*        .fsync, */
-/*        .opendir, */
+        .opendir        = dht2_opendir,
 /*        .readdir, */
         .readdirp       = dht2_readdirp,
 /*        .fsyncdir, */

@@ -62,6 +62,7 @@ int32_t zfstore_do_namei (xlator_t *, char *, loc_t *, fd_t *,
 int32_t zfstore_open_inode (xlator_t *, char *, uuid_t, fd_t *, int32_t);
 int32_t zfstore_icreate (call_frame_t *, xlator_t *, loc_t *, mode_t, dict_t *);
 int32_t zfstore_namelink (call_frame_t *, xlator_t *, loc_t *, dict_t *);
+int32_t zfstore_opendir (call_frame_t *, xlator_t *, loc_t *, fd_t *, dict_t *);
 
 static inline struct mdoperations *zf_get_nameops (struct zfstore *zf)
 {

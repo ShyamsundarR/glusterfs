@@ -56,7 +56,36 @@ posix2_save_openfd (xlator_t *this, fd_t *fd, int openfd, int32_t flags)
 
         pfd->fd = openfd;
         pfd->flags = flags;
+        if (flags & O_DIRECTORY) {
+                pfd->dirfd = fdopendir (openfd);
+                if (pfd->dirfd == NULL) {
+                        GF_FREE (pfd);
+                        return -1;
+                }
+        }
 
         ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
+        return ret;
+}
+
+int32_t
+posix2_release_openfd (xlator_t *this, fd_t *fd)
+{
+        int32_t           ret = 0;
+        uint64_t          pfd_ctx = 0;
+        struct posix2_fd *pfd = NULL;
+
+        ret = fd_ctx_del (fd, this, &pfd_ctx);
+        if (ret)
+                goto out;
+
+        pfd = (struct posix2_fd *)pfd_ctx;
+        if (pfd) {
+                if (pfd->dirfd)
+                        closedir (pfd->dirfd);
+                else
+                        close (pfd->fd);
+        }
+out:
         return ret;
 }
