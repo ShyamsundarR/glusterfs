@@ -272,6 +272,41 @@ posix2_namelink (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         return 0;
 }
 
+int32_t
+posix2_opendir (call_frame_t *frame, xlator_t *this, loc_t *loc,
+                fd_t *fd, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->opendir)
+                return handle->storeops->opendir (frame, this, loc, fd, xdata);
+
+        STACK_UNWIND_STRICT (opendir, frame, -1, ENOTSUP, NULL, NULL);
+        return 0;
+}
+
+int32_t
+posix2_readdir (call_frame_t *frame, xlator_t *this, fd_t *fd, size_t size,
+                off_t offset, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->readdir)
+                return handle->storeops->readdir (frame, this, fd, size,
+                                                  offset, xdata);
+
+        STACK_UNWIND_STRICT (readdir, frame, -1, ENOTSUP, NULL, NULL);
+        return 0;
+}
+
+int32_t
+posix2_release (xlator_t *this, fd_t *fd)
+{
+        return posix2_release_openfd (this, fd);
+}
+
 class_methods_t class_methods = {
         .init = posix2_init,
         .fini = posix2_fini,
@@ -286,9 +321,13 @@ struct xlator_fops fops = {
         .flush    = posix2_flush,
         .setattr  = posix2_setattr,
         .stat     = posix2_stat,
+        .opendir  = posix2_opendir,
+        .readdir  = posix2_readdir
 };
 
 struct xlator_cbks cbks = {
+        .release     = posix2_release,
+        .releasedir  = posix2_release
 };
 
 struct volume_options options[] = {
