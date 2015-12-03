@@ -31,12 +31,12 @@ uninstall-local:
 install-data-hook:
 	ln -sf dht2.so $(DESTDIR)$(xlatordir)/distribute2.so
 
-dht2-autogen-fops.c: dht2-autogen-fops-tmpl.c dht2-autogen-fops-c.py
+dht2-autogen-fops.c: dht2-autogen-fops-tmpl.c dht2-autogen-fops-c.py dht2autogenfopslist.py
 	PYTHONPATH=$(PYTHONPATH):../../../../libglusterfs/src/ $(PYTHON) \
 		$(srcdir)/dht2-autogen-fops-c.py \
 		$(srcdir)/dht2-autogen-fops-tmpl.c > $@
 
-dht2-autogen-fops.h: dht2-autogen-fops-tmpl.h dht2-autogen-fops-h.py
+dht2-autogen-fops.h: dht2-autogen-fops-tmpl.h dht2-autogen-fops-h.py  dht2autogenfopslist.py
 	PYTHONPATH=$(PYTHONPATH):../../../../libglusterfs/src/ \
 		$(PYTHON) $(srcdir)/dht2-autogen-fops-h.py \
 		$(srcdir)/dht2-autogen-fops-tmpl.h > $@

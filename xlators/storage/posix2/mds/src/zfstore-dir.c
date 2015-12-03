@@ -13,6 +13,8 @@
  */
 
 #include "zfstore-handle.h"
+#include "common-utils.h"
+#include "glusterfs3-xdr.h"
 
 static int32_t
 zfstore_named_lookup (call_frame_t *frame,
@@ -479,5 +481,152 @@ zfstore_icreate (call_frame_t *frame,
  purge_entry:
  unwind_err:
         STACK_UNWIND_STRICT (icreate, frame, -1, errno, NULL, NULL, NULL);
+        return 0;
+}
+
+int32_t
+zfstore_opendir (call_frame_t *frame, xlator_t *this,
+                 loc_t *loc, fd_t *fd, dict_t *xdata)
+{
+        int32_t         ret = 0;
+        struct zfstore *zf = NULL;
+
+        zf = posix2_get_store (this);
+
+        errno = EINVAL;
+
+        ret = zfstore_open_inode (this, zf->exportdir, loc->gfid, fd,
+                                  O_DIRECTORY);
+        if (ret)
+                goto unwind_err;
+
+        STACK_UNWIND_STRICT (opendir, frame, 0, 0, fd, NULL);
+        return 0;
+
+ unwind_err:
+        STACK_UNWIND_STRICT (opendir, frame, -1, errno, fd, NULL);
+        return 0;
+}
+
+/* Generic readdir function.
+ * Returns count of entries filled in on success, 0 is a valid return
+ * Returns 0 and errno = 0, when size is not enough
+ * Returns -1 on errors.
+ * errno is 0 or ENOENT on EOF for directories, where count is >= 0
+ * errno is !0 | ENOENT on other errors and count is -1 */
+int32_t
+zfstore_do_readdir (xlator_t *this, const char *kentry, fd_t *fd, size_t size,
+                    off_t offset, dict_t *dict, gf_dirent_t *entries,
+                    int whichop)
+{
+        DIR                     *dirfd = NULL;
+        int                      ret = 0;
+        char                     entrybuf[sizeof(struct dirent) + 256 + 8];
+        struct dirent           *entry = NULL;
+        size_t                   filled = 0;
+        int                      count = 0;
+        int32_t                  this_size = -1;
+        gf_dirent_t             *this_entry = NULL;
+        struct posix2_raw_fd     enfd = {0};
+
+        ret = posix2_fetch_openfd (this, fd, &enfd);
+        if (ret != 0) {
+                errno = EBADF;
+                goto out;
+        }
+
+        if ((enfd.type != POSIX2_DIR_FD) || (enfd.fd.dirfd == NULL)) {
+                errno = EBADF;
+                goto out;
+        }
+        dirfd = enfd.fd.dirfd;
+
+        if (!offset) {
+                rewinddir (dirfd);
+        } else {
+                seekdir (dirfd, offset);
+        }
+
+        /* TODO: It would better to at least allocate *size* as the *entrybuf*
+         * so that more requests can be fetched in one syscall (getdents) by
+         * the underlying readdir_r call */
+        while (filled <= size) {
+                errno = 0;
+                entry = NULL;
+                readdir_r (dirfd, (struct dirent *)entrybuf, &entry);
+                if (!entry) {
+                        if (errno == EBADF) {
+                                ret = -1;
+                                goto out;
+                        }
+                        errno = ENOENT;
+                        break;
+                }
+
+                this_size = max (sizeof (gf_dirent_t), sizeof (gfs3_dirplist))
+                            + strlen (entry->d_name) + 1;
+                if (this_size + filled > size) {
+                        break;
+                }
+
+                this_entry = gf_dirent_for_name (entry->d_name);
+                if (!this_entry) {
+                        ret = -1;
+                        goto out;
+                }
+
+                this_entry->d_off = entry->d_off;
+
+                /* TODO: We should fill up the GFID and send it back, that is
+                 * the true inode # */
+                this_entry->d_ino = entry->d_ino;
+
+                /* TODO: d_type for directories is incorrect in current
+                scheme. This can be rectified, if we know the inode type
+                we are creating and set it appropriately in the store below */
+                this_entry->d_type = entry->d_type;
+
+                list_add_tail (&this_entry->list, &entries->list);
+
+                filled += this_size;
+                count ++;
+        }
+
+        ret = count;
+
+        if (whichop != GF_FOP_READDIRP)
+                goto out;
+
+        /* TODO: Possible readdirp handling of xdata request */
+out:
+        return ret;
+}
+
+int32_t
+zfstore_readdir (call_frame_t *frame, xlator_t *this, fd_t *fd, size_t size,
+                 off_t offset, dict_t *xdata)
+{
+        int32_t         ret = 0;
+        struct zfstore *zf = NULL;
+        gf_dirent_t     entries;
+
+        zf = posix2_get_store (this);
+
+        INIT_LIST_HEAD (&entries.list);
+
+        errno = EINVAL;
+
+        ret = zfstore_do_readdir (this, zf->exportdir, fd, size, offset, xdata,
+                                  &entries, GF_FOP_READDIR);
+        if (ret < 0)
+                goto unwind_err;
+
+        STACK_UNWIND_STRICT (readdir, frame, ret, errno, &entries, NULL);
+        gf_dirent_free (&entries);
+        return 0;
+
+ unwind_err:
+        STACK_UNWIND_STRICT (readdir, frame, -1, errno, NULL, NULL);
+        gf_dirent_free (&entries);
         return 0;
 }

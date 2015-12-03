@@ -18,14 +18,35 @@ EXPECT 'Created' volinfo_field $V0 'Status';
 TEST $CLI volume start $V0
 EXPECT 'Started' volinfo_field $V0 'Status';
 
-# fuse mount
-TEST $GFS --volfile-server=$H0 --volfile-id=$V0 $M0;
+# turn off readdirp in md-cache
+TEST $CLI volume set $V0 performance.force-readdirp no
+
+# fuse mount (disabling readdirp)
+TEST $GFS --volfile-server=$H0 --volfile-id=$V0 --use-readdirp=no $M0;
 
 # empty file creations
-TEST touch $M0/f{0..300}
+TEST touch $M0/f{0..10}
 
 # stat() check
-TEST stat $M0/f{0..300}
+TEST stat $M0/f{0..10}
+
+# mkdir test
+TEST mkdir $M0/d{0..10}
+
+# setattr test
+chmod 777 $M0/f{0..10}
+chown 1234 $M0/d{1..10}
+
+# nested directories and files
+TEST mkdir -p $M0/D1/D2/D3/D4
+TEST touch $M0/D1/F1
+TEST touch $M0/D1/D2/F2
+TEST touch $M0/D1/D2/D3/F3
+TEST touch $M0/D1/D2/D3/D4/F4
+
+# directory listing
+ORIG_FILE_COUNT=`ls -l $M0 | wc -l`;
+TEST [ $ORIG_FILE_COUNT -eq 24 ]
 
 # NOTE: no umoun test as there's a segfault due to missing statfs() implementation
 #       in posix, v2.

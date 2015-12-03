@@ -920,8 +920,8 @@ struct xlator_fops fops = {
         .writev         = dht2_writev,
         .flush          = dht2_flush,
 /*        .fsync, */
-/*        .opendir, */
-/*        .readdir, */
+        .opendir        = dht2_opendir,
+        .readdir        = dht2_readdir,
         .readdirp       = dht2_readdirp,
 /*        .fsyncdir, */
 /*        .statfs, */
