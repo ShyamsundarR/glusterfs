@@ -44,7 +44,7 @@ zfstore_do_chmod (xlator_t *this, const char *entry, struct iatt *stbuf)
         mode_t  mode = 0;
 
         mode = st_mode_from_ia (stbuf->ia_prot, stbuf->ia_type);
-        return lchmod (entry, mode);
+        return chmod (entry, mode);
 }
 
 static int
