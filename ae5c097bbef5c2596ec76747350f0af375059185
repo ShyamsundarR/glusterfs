@@ -16,6 +16,23 @@
       "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac4a560_c652d9dc",
+        "filename": "xlators/storage/posix2/mds/src/zfstore-dir.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 486,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-12-04T05:40:15Z",
+      "side": 1,
+      "message": "Normally, this should be in zfstore-file.c",
+      "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
