@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5ac4a560_46824950",
+        "filename": "tests/experimental/dht2/creat.t",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-12-04T04:27:26Z",
+      "side": 1,
+      "message": "It\u0027s better to have this as a separate test. I already did that yesterday but didn\u0027t post the patch.\n\nWhat do you think?",
+      "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
