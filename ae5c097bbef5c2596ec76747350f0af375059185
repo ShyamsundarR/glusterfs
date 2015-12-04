@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "5ac4a560_e4e98d1b",
+        "filename": "tests/experimental/dht2/creat.t",
+        "patchSetId": 1
+      },
+      "lineNbr": 31,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-12-04T14:53:33Z",
+      "side": 1,
+      "message": "There are 2 things,\n\n1) This test is named creat, so obviously not the place to put it\n\n2) We need to ensure we run all relevant tests, so one big test file is good, so that we can ensure that passes and we are good\n\nSo, coming to what to do, I propose rename this test file and make it a big fat test file for basic FOPs that we are implementing, that way as we add more to it, it is expected that past tests will also pass. What say?\n\njFYI, I actually had the additions in a separate test file initially, but later merged it for reason (2)",
+      "parentUuid": "5ac4a560_46824950",
+      "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "5ac4a560_c652d9dc",
         "filename": "xlators/storage/posix2/mds/src/zfstore-dir.c",
         "patchSetId": 1
@@ -30,6 +48,24 @@
       "writtenOn": "2015-12-04T05:40:15Z",
       "side": 1,
       "message": "Normally, this should be in zfstore-file.c",
+      "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac4a560_44f961e8",
+        "filename": "xlators/storage/posix2/mds/src/zfstore-dir.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 486,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2015-12-04T14:53:33Z",
+      "side": 1,
+      "message": "ok, I thought this is a directory operation? I mean opendir and all... no?\n\nTrivial to move, just let me know.\n\nTo understand better, inode operations move to file.c and directory operations stay at dir.c, right? Or, is it inode operations and entry operations?",
+      "parentUuid": "5ac4a560_c652d9dc",
       "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
