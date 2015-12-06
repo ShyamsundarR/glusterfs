@@ -69,6 +69,24 @@
       "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac4a560_5d3853a0",
+        "filename": "xlators/storage/posix2/mds/src/zfstore-dir.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 486,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-12-06T06:12:56Z",
+      "side": 1,
+      "message": "Normally this is how local filesystems split up operations:\n\n*_dir.c: dentry operations, lookup()\n*_file.c: inode operations\n\nBut, yeh, its just naming, XFS and EXT are exactly opposite in this.",
+      "parentUuid": "5ac4a560_44f961e8",
+      "revId": "ae5c097bbef5c2596ec76747350f0af375059185",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
