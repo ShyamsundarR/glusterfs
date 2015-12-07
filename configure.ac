@@ -68,6 +68,8 @@ AC_CONFIG_FILES([Makefile
                 xlators/storage/posix/Makefile
                 xlators/storage/posix/src/Makefile
                 xlators/storage/posix2/Makefile
+                xlators/storage/posix2/common/Makefile
+                xlators/storage/posix2/common/src/Makefile
                 xlators/storage/posix2/mds/Makefile
                 xlators/storage/posix2/mds/src/Makefile
                 xlators/storage/bd/Makefile
