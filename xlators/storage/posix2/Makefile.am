@@ -1,3 +1,3 @@
-SUBDIRS = mds
+SUBDIRS = common mds
 
 CLEANFILES = 
