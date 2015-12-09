@@ -2287,6 +2287,13 @@ glusterd_op_create_volume (dict_t *dict, char **op_errstr)
                         goto out;
                 }
 
+                if (volinfo->dht2_mds_count && volinfo->dht2_data_count) {
+                        if (i <= volinfo->dht2_mds_count)
+                                brickinfo->is_mds = _gf_true;
+                        else
+                                brickinfo->is_mds = _gf_false;
+                }
+
                 /* A bricks mount dir is required only by snapshots which were
                  * introduced in gluster-3.6.0
                  */
