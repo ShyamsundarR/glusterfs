@@ -20,8 +20,6 @@
 #include "posix2.h"
 #include "super.h"
 
-#define ZFSTORE_ENTRY_HANDLE_FMT  "%s/%02x/%02x/%s"
-
 void *zfstore_ctor (xlator_t *, const char *);
 int zfstore_dtor (xlator_t *, void *);
 

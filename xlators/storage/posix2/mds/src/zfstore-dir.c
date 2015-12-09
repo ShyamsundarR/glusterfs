@@ -26,13 +26,13 @@ zfstore_named_lookup (call_frame_t *frame,
         struct iatt  buf      = {0,};
         struct iatt  postbuf  = {0,};
 
-        parlen = zfstore_handle_length (zf->exportdir);
+        parlen = posix2_handle_length (zf->exportdir);
         parpath = alloca (parlen);
 
         errno = EINVAL;
 
         /* make parent handle */
-        parlen = zfstore_make_handle (this, zf->exportdir,
+        parlen = posix2_make_handle (this, zf->exportdir,
                                       loc->pargfid, parpath, parlen);
         if (parlen <= 0)
                 goto unwind_err;
@@ -65,14 +65,14 @@ zfstore_named_lookup (call_frame_t *frame,
  * root ("/").
  */
 static int32_t
-zfstore_create_inode0x1 (xlator_t *this,
+posix2_create_inode0x1 (xlator_t *this,
                          struct zfstore *zf,
                          char *entry, uuid_t rootgfid, struct iatt *stbuf)
 {
         int32_t ret = 0;
         mode_t mode = (0700 | S_IFDIR);
 
-        ret = zfstore_create_inode (this, zf, entry, 0, mode);
+        ret = posix2_create_inode (this, entry, 0, mode);
         if (ret)
                 goto error_return;
 
@@ -122,7 +122,7 @@ zfstore_nameless_lookup (call_frame_t *frame,
         char        *export   = zf->exportdir;
         struct iatt  buf      = {0,};
 
-        entrylen = zfstore_handle_length (export);
+        entrylen = posix2_handle_length (export);
         entry = alloca (entrylen);
 
         if (!gf_uuid_is_null (loc->gfid))
@@ -134,7 +134,7 @@ zfstore_nameless_lookup (call_frame_t *frame,
                 return zfstore_handle_auxlookup (frame, this, loc, tgtuuid);
 
         errno = EINVAL;
-        entrylen = zfstore_make_handle (this, export, tgtuuid, entry, entrylen);
+        entrylen = posix2_make_handle (this, export, tgtuuid, entry, entrylen);
         if (entrylen <= 0)
                 goto unwind_err;
 
@@ -144,7 +144,7 @@ zfstore_nameless_lookup (call_frame_t *frame,
                 if (errno != ENOENT)
                         goto unwind_err;
                 if ((errno == ENOENT) && __is_root_gfid (tgtuuid))
-                        ret = zfstore_create_inode0x1 (this, zf, entry, tgtuuid, &buf);
+                        ret = posix2_create_inode0x1 (this, zf, entry, tgtuuid, &buf);
                 if (ret) {
                         if (errno == ENOENT)
                                 errno = ESTALE;
@@ -206,11 +206,11 @@ zfstore_open_inode (xlator_t *this,
         int      entrylen = 0;
         char    *entry    = NULL;
 
-        entrylen = zfstore_handle_length (export);
+        entrylen = posix2_handle_length (export);
         entry = alloca (entrylen);
 
         errno = EINVAL;
-        entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
+        entrylen = posix2_make_handle (this, export, gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto error_return;
 
@@ -245,14 +245,14 @@ zfstore_create_namei (xlator_t *this, char *parpath,
                 goto error_return;
         gf_uuid_copy (gfid, uuidreq);
 
-        entrylen = zfstore_handle_length (export);
+        entrylen = posix2_handle_length (export);
         entry = alloca (entrylen);
 
         /* create inode */
-        entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
+        entrylen = posix2_make_handle (this, export, gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto error_return;
-        ret = zfstore_create_inode (this, zf, entry, flags, mode);
+        ret = posix2_create_inode (this, entry, flags, mode);
         if (ret)
                 goto error_return;
 
@@ -342,12 +342,12 @@ zfstore_create (call_frame_t *frame,
 
         zf = posix2_get_store (this);
 
-        parlen = zfstore_handle_length (zf->exportdir);
+        parlen = posix2_handle_length (zf->exportdir);
         parpath = alloca (parlen);
 
         errno = EINVAL;
         /* parent handle */
-        parlen = zfstore_make_handle (this, zf->exportdir,
+        parlen = posix2_make_handle (this, zf->exportdir,
                                   loc->pargfid, parpath, parlen);
         if (parlen <= 0)
                 goto unwind_err;
@@ -402,11 +402,11 @@ zfstore_namelink (call_frame_t *frame,
                 goto unwind_err;
         gf_uuid_copy (gfid, uuidreq);
 
-        parlen = zfstore_handle_length (export);
+        parlen = posix2_handle_length (export);
         parpath = alloca (parlen);
 
         /* parent handle */
-        parlen = zfstore_make_handle (this, export,
+        parlen = posix2_make_handle (this, export,
                                   loc->pargfid, parpath, parlen);
         if (parlen <= 0)
                 goto unwind_err;
@@ -457,14 +457,14 @@ zfstore_icreate (call_frame_t *frame,
                 goto unwind_err;
         gf_uuid_copy (gfid, uuidreq);
 
-        entrylen = zfstore_handle_length (export);
+        entrylen = posix2_handle_length (export);
         entry = alloca (entrylen);
 
-        entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
+        entrylen = posix2_make_handle (this, export, gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto unwind_err;
 
-        ret = zfstore_create_inode (this, zf, entry, 0, mode);
+        ret = posix2_create_inode (this, entry, 0, mode);
         if (ret)
                 goto unwind_err;
 
