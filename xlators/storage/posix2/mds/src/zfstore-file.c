@@ -98,11 +98,11 @@ zfstore_setattr (call_frame_t *frame, xlator_t *this,
 
         zf = posix2_get_store (this);
 
-        entrylen = zfstore_handle_length (zf->exportdir);
+        entrylen = posix2_handle_length (zf->exportdir);
         entry = alloca (entrylen);
 
         errno = EINVAL;
-        entrylen = zfstore_make_handle (this, zf->exportdir,
+        entrylen = posix2_make_handle (this, zf->exportdir,
                                         loc->gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto unwind_err;
@@ -140,11 +140,11 @@ zfstore_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 
         zf = posix2_get_store (this);
 
-        entrylen = zfstore_handle_length (zf->exportdir);
+        entrylen = posix2_handle_length (zf->exportdir);
         entry = alloca (entrylen);
 
         errno = EINVAL;
-        entrylen = zfstore_make_handle (this, zf->exportdir,
+        entrylen = posix2_make_handle (this, zf->exportdir,
                                         loc->gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto unwind_err;
@@ -177,10 +177,10 @@ zfstore_open (call_frame_t *frame, xlator_t *this,
         errno = EINVAL;
 
         if (flags & O_CREAT) {
-                parlen = zfstore_handle_length (zf->exportdir);
+                parlen = posix2_handle_length (zf->exportdir);
                 parpath = alloca (parlen);
 
-                parlen = zfstore_make_handle (this, zf->exportdir,
+                parlen = posix2_make_handle (this, zf->exportdir,
                                               loc->pargfid, parpath, parlen);
                 if (parlen <= 0)
                         goto unwind_err;

@@ -11,8 +11,12 @@
 #ifndef __POSIX2_H__
 #define __POSIX2_H__
 
+#include <libgen.h>
 #include "xlator.h"
 #include "uuid.h"
+#include "syscall.h"
+
+#define ZFSTORE_ENTRY_HANDLE_FMT  "%s/%02x/%02x/%s"
 
 /* TODO: DIR *, O_DIRECT */
 struct posix2_fd {
@@ -24,4 +28,8 @@ int32_t posix2_lookup_is_nameless (loc_t *);
 void posix2_fill_ino_from_gfid (xlator_t *, struct iatt *);
 int32_t posix2_save_openfd (xlator_t *, fd_t *, int, int32_t);
 
+int posix2_handle_length (char *);
+int posix2_make_handle (xlator_t *, char *, uuid_t, char *, size_t);
+int32_t posix2_create_dir_hashes (xlator_t *, char *);
+int32_t posix2_create_inode (xlator_t *, char *, int32_t, mode_t);
 #endif /* __POSIX2_H__ */
