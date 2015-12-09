@@ -208,6 +208,7 @@ struct glusterd_brickinfo {
          * a replica 3 volume with arbiter enabled.
          */
         uint16_t           group;
+        gf_boolean_t       is_mds;
 
 };
 
