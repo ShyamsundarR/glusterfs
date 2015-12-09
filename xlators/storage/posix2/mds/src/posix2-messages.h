@@ -11,7 +11,7 @@
 #ifndef __POSIX2_MESSAGES_H__
 #define __POSIX2_MESSAGES_H__
 
-#ifndef _CONFIG_Hx
+#ifndef _CONFIG_H
 #define _CONFIG_H
 #include "config.h"
 #endif
@@ -48,4 +48,4 @@
 
 #define POSIX2_MSG_INODE_NULL_GFID                 (POSIX2_COMP_BASE + 11)
 
-#endif
+#endif  /* __POSIX2_MESSAGES_H__ */
