@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5ac4a560_4e99691e",
+        "filename": "xlators/storage/posix2/common/src/posix2-mem-types.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-12-10T04:59:09Z",
+      "side": 1,
+      "message": "You could reuse gf_posix2_mem_types.",
+      "revId": "78f4c74d3d95821cf88b807b0254b248b047b48c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5ac4a560_6ea0e543",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.h",
+        "patchSetId": 1
+      },
+      "lineNbr": 24,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2015-12-10T04:59:09Z",
+      "side": 1,
+      "message": "s/MDS/DS/",
+      "revId": "78f4c74d3d95821cf88b807b0254b248b047b48c",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
