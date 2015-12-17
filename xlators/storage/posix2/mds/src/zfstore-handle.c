@@ -9,6 +9,7 @@
 */
 
 #include "zfstore-handle.h"
+#include "zfinode.h"
 
 /**
  * Given an export and a basename, calculate the entry handle length.
@@ -46,27 +47,26 @@ zfstore_stat_handle (xlator_t *this,
                      char *path, struct iatt *stbuf, gf_boolean_t dircheck)
 {
         int32_t ret = 0;
-        struct stat *lstatbuf = NULL;
-        struct mdinode mdi = {0,};
+        struct stat statbuf = {0,};
         struct mdoperations *md = NULL;
 
         md = zf_get_inodeops (zf);
         if (!md)
                 return -1;
-        ret = md->mdread (this, path, &mdi);
+        ret = md->mdread (this, path, &statbuf);
         if (ret)
                 return -1;
 
-        s_mdinode_to_stat (&lstatbuf, &mdi);
-        if (dircheck && !S_ISDIR (lstatbuf->st_mode)) {
+        if (dircheck && !S_ISDIR (statbuf.st_mode)) {
                 errno = ENOTDIR;
                 return -1;
         }
         if (stbuf) {
-                iatt_from_stat (stbuf, lstatbuf);
+                iatt_from_stat (stbuf, &statbuf);
                 gf_uuid_copy (stbuf->ia_gfid, gfid);
                 posix2_fill_ino_from_gfid (this, stbuf);
         }
+
         return 0;
 }
 
@@ -158,105 +158,41 @@ zfstore_handle_entry (xlator_t *this,
 }
 
 int32_t
-zfstore_create_dir_hashes (xlator_t *this, char *entry)
-{
-        int32_t ret = 0;
-        char *duppath = NULL;
-        char *parpath = NULL;
-
-        duppath = strdupa (entry);
-
-        /* twice.. so that we get to the end of first dir entry in the path */
-        parpath = dirname (duppath);
-        parpath = dirname (duppath);
-
-        ret = mkdir (parpath, 0700);
-        if ((ret == -1) && (errno != EEXIST)) {
-                gf_msg (this->name, GF_LOG_ERROR, errno, 0,
-                        "Error creating directory level #1 for [%s]", entry);
-                goto error_return;
-        }
-
-        strcpy (duppath, entry);
-        parpath = dirname (duppath);
-
-        ret = mkdir (parpath, 0700);
-        if ((ret == -1) && (errno != EEXIST)) {
-                gf_msg (this->name, GF_LOG_ERROR, errno, 0,
-                        "Error creating directory level #2 for [%s]", entry);
-                goto error_return;
-        }
-
-        return 0;
-
- error_return:
-        /* no point in rolling back */
-        return -1;
-}
-
-/**
- * TODO: save separate inodeptr metadata.
- */
-int32_t
 zfstore_create_inode (xlator_t *this,
-                      struct zfstore *zf,
+                      struct zfstore *zf, struct ugpair *ug,
                       char *entry, int32_t flags, mode_t mode)
 {
-        int fd = -1;
-        int32_t ret = 0;
-        gf_boolean_t isdir = S_ISDIR (mode);
+        struct mdinode mdi = {0,};
+        struct mdoperations *md = NULL;
 
-        ret = zfstore_create_dir_hashes (this, entry);
-        if (ret < 0)
-                goto error_return;
-        if (isdir)
-                ret = mkdir (entry, mode);
-        else {
-                if (!flags)
-                        flags = (O_CREAT | O_RDWR | O_EXCL);
-                else
-                        flags |= O_CREAT;
+        md = zf_get_inodeops (zf);
+        if (!md)
+                return -1;
 
-                fd = open (entry, flags, mode);
-                if (fd < 0)
-                        ret = -1;
-                else
-                        sys_close (fd);
-        }
-
- error_return:
-        return (ret < 0) ? -1 : 0;
+        zfstore_ifill_default (&mdi, mode);
+        return md->dialloc (this, md, entry, flags, mode, &mdi);
 }
 
+#define ZFSTORE_NAME_ENTRY_MODE 0600
+#define ZFSTORE_NAME_ENTRY_FLAGS (O_CREAT | O_EXCL | O_WRONLY)
 int32_t
 zfstore_link_inode (xlator_t *this,
                     struct zfstore *zf,
                     char *parpath, const char *basename, uuid_t gfid)
 {
-        int32_t ret = -1;
-        int fd = -1;
-        char realpath[PATH_MAX] = {0,};
-        struct mdname mdn = {0,};
-        struct mdoperations *md = NULL;
+        char realpath[PATH_MAX]  = {0,};
+        struct mdname        mdn = {0,};
+        struct mdoperations *md  = NULL;
 
         errno = EINVAL;
         md = zf_get_nameops (zf);
         if (!md)
-                goto error_return;
-
-        (void) snprintf (realpath, PATH_MAX, "%s/%s", parpath, basename);
-        fd = open (realpath, O_CREAT | O_EXCL | O_WRONLY, 0700);
-        if (fd < 0)
-                goto error_return;
+                return -1;
 
         s_gfid_to_mdname (gfid, &mdn);
-        if (md->fmdwrite)
-                ret = md->fmdwrite (this, fd, &mdn, NULL);
-        else
-                ret = md->mdwrite (this, realpath, &mdn, NULL);
+        (void) snprintf (realpath, PATH_MAX, "%s/%s", parpath, basename);
 
-        close (fd);
-
- error_return:
-        return (ret < 0) ? -1 : 0;
+        return md->dialloc (this, md, realpath,
+                            ZFSTORE_NAME_ENTRY_FLAGS,
+                            ZFSTORE_NAME_ENTRY_MODE, &mdn);
 }

@@ -185,8 +185,8 @@ zfstore_open (call_frame_t *frame, xlator_t *this,
                 if (parlen <= 0)
                         goto unwind_err;
 
-                ret = zfstore_do_namei
-                             (this, parpath, loc, fd, flags, 0700, xdata, &buf);
+                ret = zfstore_do_namei (frame, this, parpath,
+                                        loc, fd, flags, 0700, xdata, &buf);
         } else {
                 ret = zfstore_open_inode
                                     (this, zf->exportdir, loc->gfid, fd, flags);

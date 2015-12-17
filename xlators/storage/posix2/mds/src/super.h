@@ -13,6 +13,11 @@
 
 #include "xlator.h"
 
+struct ugpair {
+        uid_t uid;
+        gid_t gid;
+};
+
 /**
  * Control write (updation) of metadata.
  */
@@ -26,10 +31,17 @@ struct __attribute__ ((__packed__)) mdname {
 };
 
 /**
- * FIXME: have our *own* stat structure
+ * non-directories are stored as hybrid inodes - parts of the inode structure
+ * is contributed by the underlying local filesystem inode itself, the other
+ * half by the inode xattr below. stat() structure is patched up on-the-fly
+ * when fetching inode attribute.
  */
 struct __attribute__ ((__packed__)) mdinode {
-        struct stat stbuf;
+        uint32_t type;
+        uint32_t nlink;
+        uint32_t rdev;
+        uint64_t size;
+        uint64_t blocks;
 };
 
 /**
@@ -37,6 +49,9 @@ struct __attribute__ ((__packed__)) mdinode {
  * that one would find on a traditional block based file system.
  */
 struct mdoperations {
+        int32_t (*dialloc) (xlator_t *this,
+                            struct mdoperations *md,
+                            char *entry, int32_t flags, mode_t mode, void *meta);
         int32_t (*mdread) (xlator_t *this, void *handle, void *md);
         int32_t (*mdwrite) (xlator_t *this,
                             void *handle, void *md, struct writecontrol *wc);
@@ -74,11 +89,6 @@ static inline void s_mdname_to_gfid (uuid_t uuid, struct mdname *mdn)
 static inline void s_gfid_to_mdname (uuid_t uuid, struct mdname *mdn)
 {
         gf_uuid_copy (mdn->uuid, uuid);
-}
-
-static inline void s_mdinode_to_stat (struct stat **stbuf, struct mdinode *mdi)
-{
-        *stbuf = &mdi->stbuf;
 }
 
 #endif /* _SUPER_H_ */

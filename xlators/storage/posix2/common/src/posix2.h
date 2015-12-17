@@ -23,5 +23,6 @@ struct posix2_fd {
 int32_t posix2_lookup_is_nameless (loc_t *);
 void posix2_fill_ino_from_gfid (xlator_t *, struct iatt *);
 int32_t posix2_save_openfd (xlator_t *, fd_t *, int, int32_t);
+int32_t posix2_create_dir_hashes (xlator_t *, char *);
 
 #endif /* __POSIX2_H__ */
