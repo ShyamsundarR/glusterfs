@@ -11,7 +11,6 @@
 #ifndef _ZFSTORE_HANDLE_H_
 #define _ZFSTORE_HANDLE_H_
 
-#include <libgen.h>
 #include "zfstore.h"
 #include "posix2-mds.h"
 
@@ -27,10 +26,8 @@ int32_t zfstore_resolve_entry (xlator_t *,
                                struct zfstore *, char *, const char *, uuid_t);
 int32_t zfstore_handle_entry (xlator_t *, struct zfstore *,
                               char *, const char *, struct iatt *);
-int32_t zfstore_create_dir_hashes (xlator_t *, char *);
-
-int32_t zfstore_create_inode (xlator_t *,
-                              struct zfstore *, char *, int32_t, mode_t);
+int32_t zfstore_create_inode (xlator_t *, struct zfstore *,
+                              struct ugpair *, char *, int32_t, mode_t);
 int32_t zfstore_link_inode (xlator_t *,
                             struct zfstore *, char *, const char *, uuid_t);
 

@@ -25,6 +25,8 @@
 #define ZF_XATTR_TEST_VAL  "okie-dokie"
 #define ZF_XATTR_TEST_KEY  "trusted.glusterfs.xa-test"
 
+#define ZF_XATTR_INODE_KEY "trusted.inode"
+
 static int32_t
 zfxattr_test_xa (xlator_t *this, const char *export)
 {
@@ -131,6 +133,52 @@ zfxattr_fini (xlator_t *this, const char *handle)
         return 0;
 }
 
+static int32_t
+zfxattr_verify_crc32 (xlator_t *this, void *data, size_t size, uint32_t crcdisk)
+{
+        uint32_t crcmem = 0;
+
+        crcmem = crc32cSlicingBy8 (0, data, size);
+        if (crcmem != crcdisk) {
+                gf_msg (this->name, GF_LOG_CRITICAL, 0, 0, "Metadata checksum "
+                        "mismatch [Disk: %u, CRC: %u]", crcdisk, crcmem);
+                return -1;
+        }
+
+        return 0;
+}
+
+static int32_t
+zfxattr_get_xa (void *hdl, char *key,
+                void *value, size_t size, gf_boolean_t isfd)
+{
+        ssize_t rsize = 0;
+
+        if (isfd)
+                rsize = sys_fgetxattr (*(int *)hdl, key, value, size);
+        else
+                rsize = sys_lgetxattr ((char *)hdl, key, value, size);
+
+        if (rsize == -1)
+                return -1;
+        if (rsize != size) {
+                errno = EINVAL;
+                return -1;
+        }
+
+        return 0;
+}
+
+static int32_t
+zfxattr_set_xa (void *hdl, char *key, void *value,
+                size_t size, struct writecontrol *wc, gf_boolean_t isfd)
+{
+        if (isfd)
+                return sys_fsetxattr (*(int *)hdl, key, value, size, 0);
+        else
+                return sys_lsetxattr ((char *)hdl, key, value, size, 0);
+}
+
 static void
 zfxattr_mdname_to_zfmdname (struct mdname *mdn, struct zfxattr_mdname *zmdn)
 {
@@ -138,43 +186,68 @@ zfxattr_mdname_to_zfmdname (struct mdname *mdn, struct zfxattr_mdname *zmdn)
         zmdn->crc = crc32cSlicingBy8 (0, zmdn, sizeof (*zmdn));
 }
 
+static void
+zfxattr_mdinode_to_zfmdinode (struct mdinode *mdi, struct zfxattr_mdinode *zmdi)
+{
+        memcpy (&zmdi->mdi, mdi, sizeof (*mdi));
+        zmdi->crc = crc32cSlicingBy8 (0, zmdi, sizeof (*zmdi));
+}
+
 static int32_t
 zfxattr_zfmdname_to_mdname (xlator_t *this,
                             struct mdname *mdn, struct zfxattr_mdname *zmdn)
 {
-        uint32_t crcmem = 0;
         uint32_t crcdisk = zmdn->crc;
 
         zmdn->crc = 0;
-        crcmem = crc32cSlicingBy8 (0, zmdn, sizeof (*zmdn));
-
-        if (crcmem == crcdisk) {
-                memcpy (mdn, &zmdn->mdn, sizeof (*mdn));
-                return 0;
+        if (zfxattr_verify_crc32 (this, zmdn, sizeof (*zmdn), crcdisk) < 0) {
+                errno = EIO;
+                return -1;
         }
 
-        gf_msg (this->name, GF_LOG_CRITICAL, 0, 0, "Metadata checksum mismatch "
-                "   [Disk: %u, CRC: %u]", crcdisk, crcmem);
-        errno = EIO;
-        return 1;
+        memcpy (mdn, &zmdn->mdn, sizeof (*mdn));
+        return 0;
+}
+
+static int32_t
+zfxattr_zfmdinode_to_stat (xlator_t *this,
+                           struct zfxattr_mdinode *zmdi, struct stat *stbuf)
+{
+        uint32_t crcdisk = zmdi->crc;
+        struct mdinode *mdi = NULL;
+
+        zmdi->crc = 0;
+        if (zfxattr_verify_crc32 (this, zmdi, sizeof (*zmdi), crcdisk) < 0) {
+                errno = EIO;
+                return -1;
+        }
+
+        mdi = &zmdi->mdi;
+
+        /* fixup inode type */
+        stbuf->st_mode = ((stbuf->st_mode & ~S_IFMT) | mdi->type);
+
+        /* and the rest.. */
+        stbuf->st_nlink  = mdi->nlink;
+        stbuf->st_rdev   = mdi->rdev;
+        stbuf->st_size   = mdi->size;
+        stbuf->st_blocks = mdi->blocks;
+
+        return 0;
 }
 
 /* name entry metadata operations */
 int32_t
 zfxattr_name_mdread (xlator_t *this, void *handle, void *md)
 {
-        size_t size = 0;
-        char *path = handle;
+        int32_t ret = 0;
         struct mdname *mdn = md;
         struct zfxattr_mdname zmdn = {0, };
 
-        size = sys_lgetxattr (path, GFID_XATTR_KEY, &zmdn, sizeof (zmdn));
-        if (size == -1)
+        ret = zfxattr_get_xa
+                     (handle, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), _gf_false);
+        if (ret)
                 return -1;
-        if (size != sizeof (struct zfxattr_mdname)) {
-                errno = EINVAL;
-                return -1;
-        }
 
         return zfxattr_zfmdname_to_mdname (this, mdn, &zmdn);
 }
@@ -183,18 +256,27 @@ int32_t
 zfxattr_name_mdwrite (xlator_t *this,
                       void *handle, void *md, struct writecontrol *wc)
 {
-        char *path = handle;
         struct mdname *mdn = md;
         struct zfxattr_mdname zmdn = {0,};
 
         zfxattr_mdname_to_zfmdname (mdn, &zmdn);
-        return sys_lsetxattr (path, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), 0);
+        return zfxattr_set_xa
+                  (handle, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), wc, _gf_false);
 }
 
 int32_t
 zfxattr_name_fmdread (xlator_t *this, int fd, void *md)
 {
-        return 0;
+        int32_t ret = 0;
+        struct mdname *mdn = md;
+        struct zfxattr_mdname zmdn = {0,};
+
+        ret = zfxattr_get_xa
+                     (&fd, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), _gf_true);
+        if (ret)
+                return -1;
+
+        return zfxattr_zfmdname_to_mdname (this, mdn, &zmdn);
 }
 
 int32_t
@@ -205,7 +287,8 @@ zfxattr_name_fmdwrite (xlator_t *this,
         struct zfxattr_mdname zmdn = {0,};
 
         zfxattr_mdname_to_zfmdname (mdn, &zmdn);
-        return sys_fsetxattr (fd, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), 0);
+        return zfxattr_set_xa
+                   (&fd, GFID_XATTR_KEY, &zmdn, sizeof (zmdn), wc, _gf_true);
 }
 
 /* inode metadata operations */
@@ -213,35 +296,77 @@ zfxattr_name_fmdwrite (xlator_t *this,
 int32_t
 zfxattr_inode_mdread (xlator_t *this, void *handle, void *md)
 {
-        char *path = handle;
-        struct mdinode *mdi = md;
+        int32_t ret = 0;
+        struct stat *stbuf = md;
+        struct zfxattr_mdinode zmdi = {0,};
 
-        return lstat (path, &mdi->stbuf);
+        ret = sys_lstat ((char *)handle, stbuf);
+        if (ret)
+                return -1;
+        if (S_ISDIR (stbuf->st_mode))
+                return 0;
+
+        ret = zfxattr_get_xa
+                  (handle, ZF_XATTR_INODE_KEY, &zmdi, sizeof (zmdi), _gf_false);
+        if (ret)
+                return -1;
+
+        return zfxattr_zfmdinode_to_stat (this, &zmdi, stbuf);
 }
 
 int32_t
 zfxattr_inode_mdwrite (xlator_t *this,
                        void *handle, void *md, struct writecontrol *wc)
 {
-        return 0;
+        struct mdinode *mdi = md;
+        struct zfxattr_mdinode zmdi = {0,};
+
+        if (mdi->type == S_IFDIR)
+                return 0;
+
+        zfxattr_mdinode_to_zfmdinode (mdi, &zmdi);
+        return zfxattr_set_xa (handle, ZF_XATTR_INODE_KEY,
+                               &zmdi, sizeof (zmdi), wc, _gf_false);
 }
 
 int32_t
 zfxattr_inode_fmdread (xlator_t *this, int fd, void *md)
 {
-        struct mdinode *mdi = md;
+        int32_t ret = 0;
+        struct stat *stbuf = md;
+        struct zfxattr_mdinode zmdi = {0,};
 
-        return fstat (fd, &mdi->stbuf);
+        ret = sys_fstat (fd, stbuf);
+        if (ret)
+                return -1;
+        if (S_ISDIR (stbuf->st_mode))
+                return 0;
+
+        ret = zfxattr_get_xa
+                     (&fd, ZF_XATTR_INODE_KEY, &zmdi, sizeof (zmdi), _gf_true);
+        if (ret)
+                return -1;
+
+        return zfxattr_zfmdinode_to_stat (this, &zmdi, stbuf);
 }
 
 int32_t
 zfxattr_inode_fmdwrite (xlator_t *this,
                         int fd, void *md, struct writecontrol *wc)
 {
-        return 0;
+        struct mdinode *mdi = md;
+        struct zfxattr_mdinode zmdi = {0,};
+
+        if (mdi->type == S_IFDIR)
+                return 0;
+
+        zfxattr_mdinode_to_zfmdinode (mdi, &zmdi);
+        return zfxattr_set_xa
+                (&fd, ZF_XATTR_INODE_KEY, &zmdi, sizeof (zmdi), wc, _gf_true);
 }
 
 struct mdoperations zfxattr_nameops = {
+        .dialloc  = zfstore_name_dialloc, /* default inode allocation */
         .mdread   = zfxattr_name_mdread,
         .mdwrite  = zfxattr_name_mdwrite,
         .fmdread  = zfxattr_name_fmdread,
@@ -249,6 +374,7 @@ struct mdoperations zfxattr_nameops = {
 };
 
 struct mdoperations zfxattr_inodeops = {
+        .dialloc  = zfstore_dialloc, /* default inode allocation */
         .mdread   = zfxattr_inode_mdread,
         .mdwrite  = zfxattr_inode_mdwrite,
         .fmdread  = zfxattr_inode_fmdread,

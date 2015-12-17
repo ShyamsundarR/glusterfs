@@ -8,6 +8,7 @@
    cases as published by the Free Software Foundation.
 */
 
+#include <libgen.h>
 #include "posix2.h"
 #include "posix2-mem-types.h"
 
@@ -59,4 +60,41 @@ posix2_save_openfd (xlator_t *this, fd_t *fd, int openfd, int32_t flags)
 
         ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
         return ret;
+}
+
+int32_t
+posix2_create_dir_hashes (xlator_t *this, char *entry)
+{
+        int32_t ret = 0;
+        char *duppath = NULL;
+        char *parpath = NULL;
+
+        duppath = strdupa (entry);
+
+        /* twice.. so that we get to the end of first dir entry in the path */
+        parpath = dirname (duppath);
+        parpath = dirname (duppath);
+
+        ret = mkdir (parpath, 0777);
+        if ((ret == -1) && (errno != EEXIST)) {
+                gf_msg (this->name, GF_LOG_ERROR, errno, 0,
+                        "Error creating directory level #1 for [%s]", entry);
+                goto error_return;
+        }
+
+        strcpy (duppath, entry);
+        parpath = dirname (duppath);
+
+        ret = mkdir (parpath, 0700);
+        if ((ret == -1) && (errno != EEXIST)) {
+                gf_msg (this->name, GF_LOG_ERROR, errno, 0,
+                        "Error creating directory level #2 for [%s]", entry);
+                goto error_return;
+        }
+
+        return 0;
+
+ error_return:
+        /* no point in rolling back */
+        return -1;
 }

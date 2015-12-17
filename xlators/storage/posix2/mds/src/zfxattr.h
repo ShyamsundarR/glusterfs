@@ -13,6 +13,7 @@
 
 #include "xlator.h"
 #include "super.h"
+#include "zfinode.h"
 
 /**
  * Excapsulate the name metadata into our own structure and checksum it
@@ -20,6 +21,11 @@
  */
 struct __attribute__ ((__packed__)) zfxattr_mdname {
         struct mdname mdn;
+        uint32_t crc;
+};
+
+struct __attribute__ ((__packed__)) zfxattr_mdinode {
+        struct mdinode mdi;
         uint32_t crc;
 };
 

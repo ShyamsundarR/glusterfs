@@ -57,7 +57,8 @@ int32_t zfstore_flush (call_frame_t *, xlator_t *, fd_t *, dict_t *);
 int32_t zfstore_setattr (call_frame_t *, xlator_t *,
                          loc_t *, struct iatt *, int32_t, dict_t *);
 int32_t zfstore_stat (call_frame_t *, xlator_t *, loc_t *, dict_t *);
-int32_t zfstore_do_namei (xlator_t *, char *, loc_t *, fd_t *,
+int32_t zfstore_do_namei (call_frame_t *,
+                          xlator_t *, char *, loc_t *, fd_t *,
                           int32_t, mode_t, dict_t *, struct iatt *);
 int32_t zfstore_open_inode (xlator_t *, char *, uuid_t, fd_t *, int32_t);
 int32_t zfstore_icreate (call_frame_t *, xlator_t *, loc_t *, mode_t, dict_t *);

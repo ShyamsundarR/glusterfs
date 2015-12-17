@@ -71,8 +71,9 @@ zfstore_create_inode0x1 (xlator_t *this,
 {
         int32_t ret = 0;
         mode_t mode = (0700 | S_IFDIR);
+        struct ugpair ug = {.uid = 0, .gid = 0};
 
-        ret = zfstore_create_inode (this, zf, entry, 0, mode);
+        ret = zfstore_create_inode (this, zf, &ug, entry, 0, mode);
         if (ret)
                 goto error_return;
 
@@ -224,7 +225,8 @@ zfstore_open_inode (xlator_t *this,
 }
 
 static int32_t
-zfstore_create_namei (xlator_t *this, char *parpath,
+zfstore_create_namei (call_frame_t *frame,
+                      xlator_t *this, char *parpath,
                       loc_t *loc, fd_t *fd, int32_t flags,
                       mode_t mode, dict_t *xdata, struct iatt *stbuf)
 {
@@ -235,6 +237,10 @@ zfstore_create_namei (xlator_t *this, char *parpath,
         void           *uuidreq  = NULL;
         uuid_t          gfid     = {0,};
         struct zfstore *zf       = NULL;
+        struct ugpair ug = {
+                .uid = frame->root->uid,
+                .gid = frame->root->gid,
+        };
 
         zf = posix2_get_store (this);
         export = zf->exportdir;
@@ -252,7 +258,7 @@ zfstore_create_namei (xlator_t *this, char *parpath,
         entrylen = zfstore_make_handle (this, export, gfid, entry, entrylen);
         if (entrylen <= 0)
                 goto error_return;
-        ret = zfstore_create_inode (this, zf, entry, flags, mode);
+        ret = zfstore_create_inode (this, zf, &ug, entry, flags, mode);
         if (ret)
                 goto error_return;
 
@@ -285,8 +291,8 @@ zfstore_create_namei (xlator_t *this, char *parpath,
  * correct inode and acquire an fd reference.
  */
 int32_t
-zfstore_do_namei (xlator_t *this,
-                  char *parpath, loc_t *loc, fd_t *fd,
+zfstore_do_namei (call_frame_t *frame,
+                  xlator_t *this, char *parpath, loc_t *loc, fd_t *fd,
                   int32_t flags, mode_t mode, dict_t *xdata, struct iatt *stbuf)
 {
         int32_t         ret    = 0;
@@ -315,7 +321,8 @@ zfstore_do_namei (xlator_t *this,
                 }
 
                 if (ret)
-                        ret = zfstore_create_namei (this, parpath, loc, fd,
+                        ret = zfstore_create_namei (frame, this,
+                                                    parpath, loc, fd,
                                                     flags, mode, xdata, stbuf);
                 else
                         ret = zfstore_open_inode
@@ -359,7 +366,7 @@ zfstore_create (call_frame_t *frame,
                 goto unwind_err;
 
         ret = zfstore_do_namei
-                       (this, parpath, loc, fd, flags, mode, xdata, &buf);
+                    (frame, this, parpath, loc, fd, flags, mode, xdata, &buf);
         if (ret)
                 goto unwind_err;
 
@@ -447,6 +454,10 @@ zfstore_icreate (call_frame_t *frame,
         char           *export   = NULL;
         struct iatt     stbuf    = {0,};
         struct zfstore *zf       = NULL;
+        struct ugpair ug = {
+                .uid = frame->root->uid,
+                .gid = frame->root->gid,
+        };
 
         zf = posix2_get_store (this);
         export = zf->exportdir;
@@ -464,7 +475,7 @@ zfstore_icreate (call_frame_t *frame,
         if (entrylen <= 0)
                 goto unwind_err;
 
-        ret = zfstore_create_inode (this, zf, entry, 0, mode);
+        ret = zfstore_create_inode (this, zf, &ug, entry, 0, mode);
         if (ret)
                 goto unwind_err;
 

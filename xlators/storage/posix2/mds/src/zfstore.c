@@ -1,3 +1,4 @@
+
 /*
    Copyright (c) 2006-2015 Red Hat, Inc. <http://www.redhat.com>
    This file is part of GlusterFS.
@@ -14,6 +15,7 @@
 #include "zfstore.h"
 
 #include "zfxattr.h"
+#include "zfinode.h"
 
 static struct mdstore zf_mdstore[] = {
         {
@@ -80,17 +82,15 @@ zfstore_ctor (xlator_t *this, const char *export)
         }
 
         md = zfstore_find_metadata_store (this);
-        if (!md)
+        if (!md || !md->mdinit)
                 goto error_return;
         ni = GF_CALLOC (1, sizeof (*ni), gf_posix2_mt_nameiops_t);
         if (!ni)
                 goto error_return;
-        if (md->mdinit) {
-                ret = md->mdinit (this, export, ni);
-                if (ret)
-                        goto free_nameiops;
-        }
 
+        ret = md->mdinit (this, export, ni);
+        if (ret)
+                goto free_nameiops;
         /* setup up store */
         zf = zfstore_prepare_store (this, export, ni);
         if (!zf)
