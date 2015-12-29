@@ -22,6 +22,7 @@ enum gf_posix2_mem_types {
 
 enum gf_posix2_ds_mem_types {
         gf_posix2_ds_mt_private_t = gf_posix2_mt_end + 1,
+        gf_posix2_ds_mt_posix2_fd_t,
         gf_posix2_ds_mt_end,
 };
 #endif /* __POSIX2_MEM_TYPES_H__ */
