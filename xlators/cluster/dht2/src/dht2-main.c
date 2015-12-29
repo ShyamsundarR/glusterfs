@@ -571,6 +571,143 @@ bail:
 }
 
 int32_t
+dht2_ds_open_cbk(
+        call_frame_t *frame, void *cookie, xlator_t *this,
+	int32_t op_ret, int32_t op_errno,
+        fd_t * fd,
+	dict_t * xdata)
+{
+
+        VALIDATE_OR_GOTO (frame, bail);
+
+        /* TODO: Rebalance EREMOTE or equivalent errors need to be handled */
+
+        DHT2_STACK_UNWIND (open, frame, op_ret, op_errno,
+                           fd, xdata);
+bail:
+        return 0;
+}
+
+int32_t
+dht2_open_cbk(
+        call_frame_t *frame, void *cookie, xlator_t *this,
+	int32_t op_ret, int32_t op_errno,
+        fd_t * fd,
+	dict_t * xdata)
+{
+        dht2_conf_t      *conf           = NULL;
+        dht2_local_t     *local          = NULL;
+        xlator_t         *ds_wind_subvol = NULL;
+        uuid_t            gfid           = {0,};
+        loc_t            *wind_loc       = NULL;
+
+        VALIDATE_OR_GOTO (frame, bail);
+        GF_VALIDATE_OR_GOTO ("dht2", this, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+        GF_VALIDATE_OR_GOTO ("dht2", this->private, err);
+
+        if (op_ret == -1)
+                goto err;
+
+        /* Open FD on DS side. */
+        conf = this->private;
+        local = frame->local;
+        wind_loc = &local->d2local_loc;
+
+        if (!gf_uuid_is_null (wind_loc->gfid))
+                gf_uuid_copy (gfid, wind_loc->gfid);
+        else if (wind_loc->inode && !gf_uuid_is_null (wind_loc->inode->gfid))
+                gf_uuid_copy (gfid, wind_loc->inode->gfid);
+        else
+                goto err;
+
+        ds_wind_subvol = dht2_find_subvol_for_gfid (conf, gfid, DHT2_DS_LAYOUT);
+        if (!ds_wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s", gfid);
+                goto err;
+        }
+
+        /* wind open to DS subvolume */
+        STACK_WIND (frame, dht2_ds_open_cbk,
+                    ds_wind_subvol, ds_wind_subvol->fops->open,
+                    wind_loc, fd->flags, fd, xdata);
+
+        return 0;
+err:
+        op_errno = (op_errno == -1) ? errno : op_errno;
+        DHT2_STACK_UNWIND (open, frame, -1, op_errno,
+                           fd, xdata);
+bail:
+        return 0;
+}
+
+int32_t
+dht2_open (
+	call_frame_t *frame, xlator_t *this,
+	loc_t * loc,
+	int32_t flags,
+	fd_t * fd,
+	dict_t * xdata)
+{
+        dht2_conf_t     *conf = NULL;
+        dht2_local_t    *local = NULL;
+        int32_t          op_errno = 0;
+        xlator_t        *wind_subvol = NULL;
+
+        VALIDATE_OR_GOTO (frame, bail);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (loc, err);
+        VALIDATE_OR_GOTO (loc->inode, err);
+
+        conf = this->private;
+        if (!conf)
+                goto err;
+
+        /* TODO: GF_FOP_STAT should be generated, we are not using it at
+         * present, so letting it pass for now as a constant */
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_STAT);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        if (gf_uuid_is_null (loc->inode->gfid)) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_MISSING_GFID_IN_INODE,
+                        "Missing GFID for inode %p",
+                        loc->inode);
+        }
+
+        /* determine subvolume to wind open to */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, loc->inode->gfid,
+                                                 DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        uuid_utoa (loc->inode->gfid));
+                goto err;
+        }
+
+        /* wind open to subvolume */
+        STACK_WIND (frame, dht2_open_cbk,
+                    wind_subvol, wind_subvol->fops->open,
+                    loc, flags, fd, xdata);
+
+        return 0;
+err:
+        DHT2_STACK_UNWIND (open, frame, -1, op_errno,
+                           NULL, NULL);
+bail:
+        return 0;
+}
+
+int32_t
 mem_acct_init (xlator_t *this)
 {
         int     ret = -1;
