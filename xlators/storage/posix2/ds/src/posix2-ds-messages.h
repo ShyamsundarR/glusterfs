@@ -46,4 +46,20 @@
 
 #define POSIX2_DS_MSG_FD_PATH_SETTING_FAILED          (POSIX2_DS_COMP_BASE + 8)
 
+#define POSIX2_DS_MSG_PFD_NULL                        (POSIX2_DS_COMP_BASE + 9)
+
+#define POSIX2_DS_MSG_FSTAT_FAILED                    (POSIX2_DS_COMP_BASE + 10)
+
+#define POSIX2_DS_MSG_WRITEV_FAILED                   (POSIX2_DS_COMP_BASE + 11)
+
+#define POSIX2_DS_MSG_DICT_SET_FAILED                 (POSIX2_DS_COMP_BASE + 12)
+
+#define POSIX2_DS_MSG_STATVFS_FAILED                  (POSIX2_DS_COMP_BASE + 13)
+
+#define POSIX2_DS_MSG_GOT_MDS_OP                      (POSIX2_DS_COMP_BASE + 14)
+
+#define POSIX2_DS_MSG_INVALID_OPTION_VAL              (POSIX2_DS_COMP_BASE + 15)
+
+#define POSIX2_DS_MSG_FSYNC_FAILED                    (POSIX2_DS_COMP_BASE + 16)
+
 #endif /* __POSIX2_DS_MESSAGES_H__ */

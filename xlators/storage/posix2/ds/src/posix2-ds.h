@@ -20,8 +20,12 @@
 struct posix2_ds {
         char *hostname;
         char *exportdir;
+        gf_lock_t lock;
 
         DIR *mountlock;
+
+        int64_t write_value;
+        gf_boolean_t export_statfs;
 };
 
 #endif /* __POSIX2_DS_H__ */
