@@ -42,4 +42,8 @@
 
 #define POSIX2_DS_MSG_NULL_GFID                       (POSIX2_DS_COMP_BASE + 6)
 
-#endif
+#define POSIX2_DS_MSG_FILE_OP_FAILED                  (POSIX2_DS_COMP_BASE + 7)
+
+#define POSIX2_DS_MSG_FD_PATH_SETTING_FAILED          (POSIX2_DS_COMP_BASE + 8)
+
+#endif /* __POSIX2_DS_MESSAGES_H__ */

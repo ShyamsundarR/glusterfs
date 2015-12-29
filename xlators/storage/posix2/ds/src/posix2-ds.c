@@ -201,6 +201,126 @@ posix2_lookup (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
         return 0;
 }
 
+int32_t
+posix2_open (call_frame_t *frame, xlator_t *this,
+            loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
+{
+        int32_t               ret          = -1;
+        int32_t               op_ret       = -1;
+        int32_t               op_errno     = 0;
+        int                   entrylen     = 0;
+        char                 *entry        = NULL;
+        char                 *export       = NULL;
+        int32_t               _fd          = -1;
+        struct posix2_fd     *pfd          = NULL;
+        struct posix2_ds     *priv         = NULL;
+        struct iatt           stbuf        = {0, };
+        uuid_t                tgtuuid      = {0, };
+
+        /* DECLARE_OLD_FS_ID_VAR; */
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (this->private, out);
+        VALIDATE_OR_GOTO (loc, out);
+        VALIDATE_OR_GOTO (fd, out);
+
+        priv = this->private;
+        export = priv->exportdir;
+
+        if (gf_uuid_is_null (loc->gfid)) {
+                gf_msg (this->name, GF_LOG_ERROR,
+                        0, POSIX2_DS_MSG_NULL_GFID,
+                        "loc->gfid is NULL");
+                goto out;
+        }
+        gf_uuid_copy (tgtuuid, loc->gfid);
+
+        entrylen = posix2_handle_length (export);
+        entry = alloca (entrylen);
+
+        errno = EINVAL;
+        entrylen = posix2_make_handle (this, export, tgtuuid, entry, entrylen);
+        if (entrylen <= 0) {
+                op_ret = -1;
+                op_errno = errno;
+                goto out;
+        }
+
+        ret = posix2_ds_resolve_inodeptr
+                       (this, tgtuuid, entry, &stbuf);
+
+        if (ret < 0) {
+                op_ret = -1;
+                op_errno = ESTALE; /*TODO ESTALE or EINVAL */
+                goto out;
+        }
+
+        if (IA_ISLNK (stbuf.ia_type)) {
+                op_ret = -1;
+                op_errno = ELOOP;
+                goto out;
+        }
+
+        op_ret = -1;
+
+        /* SET_FS_ID (frame->root->uid, frame->root->gid);
+
+        if (priv->o_direct)
+                flags |= O_DIRECT;
+
+         */
+
+        _fd = open (entry, flags, 0);
+        if (_fd == -1) {
+                op_ret   = -1;
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        POSIX2_DS_MSG_FILE_OP_FAILED,
+                        "open on %s, flags: %d", entry, flags);
+                goto out;
+        }
+
+        pfd = GF_CALLOC (1, sizeof (*pfd), gf_posix2_ds_mt_posix2_fd_t);
+        if (!pfd) {
+                op_errno = errno;
+                goto out;
+        }
+
+        pfd->flags = flags;
+        pfd->fd    = _fd;
+
+        op_ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
+        if (op_ret)
+                gf_msg (this->name, GF_LOG_WARNING, 0,
+                        POSIX2_DS_MSG_FD_PATH_SETTING_FAILED,
+                        "failed to set the fd context path=%s fd=%p",
+                        entry, fd);
+
+        /* TODO: Add later
+        LOCK (&priv->lock);
+        {
+                priv->nr_files++;
+        }
+        UNLOCK (&priv->lock);
+        */
+
+        op_ret = 0;
+
+out:
+        if (op_ret == -1) {
+                if (_fd != -1) {
+                        close (_fd);
+                }
+        }
+
+        /* SET_TO_OLD_FS_ID (); */
+
+        STACK_UNWIND_STRICT (open, frame, op_ret, op_errno, fd, NULL);
+
+        return 0;
+}
+
 class_methods_t class_methods = {
         .init = posix2_ds_init,
         .fini = posix2_ds_fini,
@@ -208,6 +328,7 @@ class_methods_t class_methods = {
 
 struct xlator_fops fops = {
         .lookup = posix2_lookup,
+        .open   = posix2_open,
 };
 
 struct xlator_cbks cbks = {
