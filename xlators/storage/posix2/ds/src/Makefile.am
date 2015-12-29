@@ -3,13 +3,13 @@ xlatordir = $(libdir)/glusterfs/$(PACKAGE_VERSION)/xlator/storage
 
 posix2_ds_la_LDFLAGS = -module -avoid-version
 
-posix2_ds_la_SOURCES = posix2-ds.c
+posix2_ds_la_SOURCES = posix2-ds.c posix2-ds-helpers.c
 
 posix2_ds_la_LIBADD = $(top_builddir)/libglusterfs/src/libglusterfs.la \
                        $(top_builddir)/xlators/storage/posix2/common/src/libposix2.la \
                        $(LIBAIO) $(ACL_LIBS)
 
-noinst_HEADERS = posix2-ds.h posix2-ds-messages.h
+noinst_HEADERS = posix2-ds.h posix2-ds-messages.h posix2-ds-helpers.h
 
 AM_CPPFLAGS = $(GF_CPPFLAGS) -I$(top_srcdir)/libglusterfs/src \
             -I$(top_srcdir)/rpc/xdr/src \
