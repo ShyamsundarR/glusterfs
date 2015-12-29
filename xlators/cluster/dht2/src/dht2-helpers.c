@@ -17,6 +17,7 @@
 #include "logging.h"
 #include "statedump.h"
 #include "dht2-helpers.h"
+#include "dht2-layout.h"
 
 dht2_local_t *
 dht2_local_init (call_frame_t *frame, dht2_conf_t *conf, loc_t *loc, fd_t *fd,
@@ -35,10 +36,16 @@ dht2_local_init (call_frame_t *frame, dht2_conf_t *conf, loc_t *loc, fd_t *fd,
                         goto free_local;
         }
 
+        if (fd) {
+                local->fd = fd_ref (fd);
+                if (fd->inode) {
+                        local->cached_subvol = dht2_find_subvol_for_gfid (conf,
+                                               fd->inode->gfid, DHT2_DS_LAYOUT);
+                }
+        }
+
         local->d2local_fop = fop;
-
         frame->local = local;
-
         return local;
 free_local:
         mem_put (local);

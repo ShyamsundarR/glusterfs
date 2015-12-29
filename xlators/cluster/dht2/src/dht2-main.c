@@ -707,6 +707,78 @@ bail:
         return 0;
 }
 
+int
+dht2_writev_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
+                 int op_ret, int op_errno, struct iatt *prebuf,
+                 struct iatt *postbuf, dict_t *xdata)
+{
+
+        call_frame_t  *prev = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        prev = cookie;
+
+        if (op_ret == -1) {
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_WRITEV_ERROR,
+                        "subvolume %s returned -1 (%s)",
+                        prev->this->name, strerror (op_errno));
+                goto out;
+        }
+
+out:
+        DHT2_STACK_UNWIND (writev, frame, op_ret, op_errno, prebuf, postbuf,
+                           xdata);
+bail:
+        return 0;
+}
+
+int
+dht2_writev (call_frame_t *frame, xlator_t *this, fd_t *fd,
+            struct iovec *vector, int count, off_t off, uint32_t flags,
+            struct iobref *iobref, dict_t *xdata)
+{
+        dht2_conf_t     *conf        = NULL;
+        xlator_t        *wind_subvol = NULL;
+        int              op_errno    = -1;
+        dht2_local_t    *local       = NULL;
+
+        VALIDATE_OR_GOTO (frame, err);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (this->private, err);
+        VALIDATE_OR_GOTO (fd, err);
+
+        conf = this->private;
+
+        /* LOOKUP */
+        local = dht2_local_init (frame, conf, NULL, fd, GF_FOP_WRITE);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        wind_subvol = local->cached_subvol;
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        fd->inode?uuid_utoa(fd->inode->gfid):"Inode is NULL");
+                goto err;
+        }
+
+        STACK_WIND (frame, dht2_writev_cbk,
+                    wind_subvol, wind_subvol->fops->writev,
+                    fd, vector, count, off, flags, iobref, xdata);
+        return 0;
+
+err:
+        op_errno = (op_errno == -1) ? errno : op_errno;
+        DHT2_STACK_UNWIND (writev, frame, -1, op_errno, NULL, NULL, NULL);
+
+        return 0;
+}
+
 int32_t
 mem_acct_init (xlator_t *this)
 {
