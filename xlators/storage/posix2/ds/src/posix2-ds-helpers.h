@@ -22,5 +22,5 @@ posix2_ds_resolve_inodeptr (xlator_t *, uuid_t, char *, struct iatt *);
 int
 posix2_fd_ctx_get (fd_t *fd, xlator_t *this, struct posix2_fd **pfd);
 int
-posix2_fdstat (xlator_t *, int, struct iatt *);
+posix2_fdstat (xlator_t *, int, uuid_t, struct iatt *);
 #endif /*__POSIX2_DS_HELPERS_H__*/
