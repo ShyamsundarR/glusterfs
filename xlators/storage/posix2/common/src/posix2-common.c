@@ -139,6 +139,28 @@ out:
         return;
 }
 
+int
+posix2_fdstat (xlator_t *this, int fd, uuid_t gfid, struct iatt *stbuf_p)
+{
+        int                    ret     = 0;
+        struct stat            fstatbuf = {0, };
+        struct iatt            stbuf = {0, };
+
+        ret = fstat (fd, &fstatbuf);
+        if (ret == -1)
+                goto out;
+
+        iatt_from_stat (&stbuf, &fstatbuf);
+        gf_uuid_copy (stbuf.ia_gfid, gfid);
+        posix2_fill_ino_from_gfid (this, &stbuf);
+
+        if (stbuf_p)
+                *stbuf_p = stbuf;
+
+out:
+        return ret;
+}
+
 int32_t
 posix2_save_openfd (xlator_t *this, fd_t *fd, int openfd, int32_t flags)
 {
@@ -153,5 +175,9 @@ posix2_save_openfd (xlator_t *this, fd_t *fd, int openfd, int32_t flags)
         pfd->flags = flags;
 
         ret = fd_ctx_set (fd, this, (uint64_t)(long)pfd);
+        if (ret) {
+                GF_FREE (pfd);
+                pfd = NULL;
+        }
         return ret;
 }

@@ -40,3 +40,105 @@ posix2_ds_resolve_inodeptr (xlator_t *this,
         return posix2_ds_stat_handle (this, tgtuuid,
                                      ihandle, stbuf);
 }
+
+static int
+__posix2_fd_ctx_get (fd_t *fd, xlator_t *this, struct posix2_fd **pfd_p)
+{
+        uint64_t           tmp_pfd   = 0;
+        struct posix2_fd  *pfd       = NULL;
+        int                ret       = -1;
+        int                _fd       = -1;
+        char              *export    = NULL;
+        struct posix2_ds  *ds        = NULL;
+        struct iatt        buf       = {0,};
+        uuid_t             tgtuuid   = {0,};
+        int                entrylen  = 0;
+        char              *entry     = NULL;
+
+        ds = this->private;
+        export = ds->exportdir;
+
+        ret = __fd_ctx_get (fd, this, &tmp_pfd);
+        if (ret == 0) {
+                pfd = (void *)(long) tmp_pfd;
+                ret = 0;
+                goto out;
+        }
+
+        if (fd->inode) {
+                gf_uuid_copy (tgtuuid, fd->inode->gfid);
+        }
+        else {
+                ret = -1;
+                goto err;
+        }
+
+        entrylen = posix2_handle_length (export);
+        entry = alloca (entrylen);
+        entrylen = posix2_make_handle (this, export, tgtuuid, entry, entrylen);
+        if (entrylen <= 0)
+                goto err;
+        ret = posix2_ds_resolve_inodeptr
+                       (this, tgtuuid, entry, &buf);
+        if (ret < 0)
+                goto err;
+
+        if (!fd_is_anonymous(fd)) {
+                gf_log (this->name, GF_LOG_ERROR,
+                        "Failed to get fd context for a non-anonymous fd, "
+                        "file: %s, gfid: %s", entry,
+                        uuid_utoa (fd->inode->gfid));
+                goto err;
+        }
+
+        pfd = GF_CALLOC (1, sizeof (*pfd), gf_posix2_mt_posix2_fd_t);
+        if (!pfd) {
+                goto err;
+        }
+        pfd->fd = -1;
+
+        /* 1. Using fd->flags in case we choose to have anonymous
+         *    fds with different flags some day. As of today it
+         *    would be GF_ANON_FD_FLAGS and nothing else.
+         * 2. Assuming only regular files on DS side, go ahead and open.
+         */
+        _fd = open (entry, fd->flags);
+        if (_fd == -1) {
+                ret = -1;
+                goto free_pfd;
+        }
+        pfd->fd = _fd;
+
+        ret = __fd_ctx_set (fd, this, (uint64_t) (long) pfd);
+        if (ret != 0)
+                goto free_pfd;
+
+        ret = 0;
+
+out:
+        if (pfd_p)
+                *pfd_p = pfd;
+        return ret;
+
+free_pfd:
+        GF_FREE (pfd);
+        pfd = NULL;
+        if (_fd != -1)
+                close (_fd);
+err:
+        return ret;
+}
+
+int
+posix2_fd_ctx_get (fd_t *fd, xlator_t *this, struct posix2_fd **pfd)
+{
+        int   ret;
+
+        LOCK (&fd->inode->lock);
+        {
+                ret = __posix2_fd_ctx_get (fd, this, pfd);
+        }
+        UNLOCK (&fd->inode->lock);
+
+        return ret;
+}

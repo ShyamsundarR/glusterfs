@@ -17,6 +17,7 @@ enum gf_posix2_mem_types {
         gf_posix2_mt_zfstore_t,
         gf_posix2_mt_posix2_fd_t,
         gf_posix2_mt_nameiops_t,
+        gf_posix2_mt_char,
         gf_posix2_mt_end,
 };
 

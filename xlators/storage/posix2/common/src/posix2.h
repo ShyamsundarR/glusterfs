@@ -32,4 +32,5 @@ int posix2_handle_length (char *);
 int posix2_make_handle (xlator_t *, char *, uuid_t, char *, size_t);
 int32_t posix2_create_dir_hashes (xlator_t *, char *);
 int32_t posix2_create_inode (xlator_t *, char *, int32_t, mode_t);
+int posix2_fdstat (xlator_t *, int, uuid_t, struct iatt *);
 #endif /* __POSIX2_H__ */
