@@ -55,7 +55,7 @@ struct dht2_local {
         gf_boolean_t         d2local_postparent_stbuf_filled;
         struct iatt          d2local_postparent_stbuf;
 
-        struct iatt   d2local_stbuf;         /* stat buf of the entry */
+        struct iatt          d2local_stbuf;         /* stat buf of the entry */
 };
 typedef struct dht2_local dht2_local_t;
 
