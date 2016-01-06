@@ -775,6 +775,79 @@ err:
         return 0;
 }
 
+int
+dht2_readv_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
+               int op_ret, int op_errno,
+               struct iovec *vector, int count, struct iatt *stbuf,
+               struct iobref *iobref, dict_t *xdata)
+{
+        call_frame_t  *prev = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        prev = cookie;
+
+        /* TODO: Handle rebalance */
+
+        if (op_ret == -1) {
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_READV_ERROR,
+                        "subvolume %s returned -1 (%s)",
+                        prev->this->name, strerror (op_errno));
+                goto out;
+        }
+
+out:
+        DHT2_STACK_UNWIND (readv, frame, op_ret, op_errno, vector, count, stbuf,
+                          iobref, xdata);
+bail:
+        return 0;
+}
+
+int
+dht2_readv (call_frame_t *frame, xlator_t *this,
+           fd_t *fd, size_t size, off_t off, uint32_t flags, dict_t *xdata)
+{
+        dht2_conf_t   *conf          = NULL;
+        xlator_t      *wind_subvol   = NULL;
+        int            op_errno      = -1;
+        dht2_local_t  *local         = NULL;
+
+        VALIDATE_OR_GOTO (frame, err);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (this->private, err);
+        VALIDATE_OR_GOTO (fd, err);
+
+        conf = this->private;
+
+        local = dht2_local_init (frame, conf, NULL, fd, GF_FOP_READ);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        wind_subvol = local->cached_subvol;
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        fd->inode?uuid_utoa(fd->inode->gfid):"Inode is NULL");
+                goto err;
+        }
+
+        STACK_WIND (frame, dht2_readv_cbk,
+                    wind_subvol, wind_subvol->fops->readv,
+                    fd, size, off, flags, xdata);
+
+        return 0;
+
+err:
+        op_errno = (op_errno == -1) ? errno : op_errno;
+        DHT2_STACK_UNWIND (readv, frame, -1, op_errno, NULL, 0, NULL, NULL, NULL);
+
+        return 0;
+}
+
 int32_t
 mem_acct_init (xlator_t *this)
 {
@@ -912,7 +985,7 @@ struct xlator_fops fops = {
 /*        .link; */
         .create         = dht2_create,
         .open           = dht2_open,
-/*        .readv, */
+        .readv          = dht2_readv,
         .writev         = dht2_writev,
         .flush          = dht2_flush,
 /*        .fsync, */
