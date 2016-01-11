@@ -423,6 +423,117 @@ err:
 
 }
 
+static void
+dht2_generic_stack_unwind (call_frame_t *frame, xlator_t *this, int32_t op_ret,
+                           int32_t op_errno, inode_t *inode, struct iatt *buf,
+                           dict_t *xdata, struct iatt *postparent)
+{
+        dht2_local_t    *local = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+
+        local = frame->local;
+
+        switch (local->d2local_fop) {
+        case GF_FOP_LOOKUP:
+                DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno, inode,
+                                   buf, xdata, postparent);
+                break;
+
+        case GF_FOP_STAT:
+                DHT2_STACK_UNWIND (stat, frame, op_ret, op_errno, buf,
+                                   xdata);
+                break;
+
+        case GF_FOP_FSTAT:
+                DHT2_STACK_UNWIND (fstat, frame, op_ret, op_errno,
+                                   buf, xdata);
+                break;
+        default:
+                gf_msg (DHT2_MSG_DOM, GF_LOG_CRITICAL, op_errno,
+                        DHT2_MSG_INVALID_FOP,
+                        "FATAL: No FOP to UNWIND");
+        }
+err:
+        return;
+}
+
+int32_t
+dht2_aggregate_iatt_from_ds_cbk (call_frame_t *frame, void *cookie,
+                                 xlator_t *this, int32_t op_ret,
+                                 int32_t op_errno, inode_t *inode,
+                                 struct iatt *buf, dict_t *xdata,
+                                 struct iatt *postparent)
+{
+        dht2_local_t    *local = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        GF_VALIDATE_OR_GOTO ("dht2", this, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+        GF_VALIDATE_OR_GOTO ("dht2", cookie, err);
+
+        local = frame->local;
+
+        if (!op_ret) {
+                /* Aggregate iatt from DS with MDS */
+                dht2_iatt_copy_mds(buf, &local->d2local_mds_stbuf);
+                dht2_generic_stack_unwind (frame, this, op_ret, op_errno,
+                                   inode, buf, xdata,
+                                   (local->d2local_postparent_stbuf_filled ?
+                                   &local->d2local_postparent_stbuf :
+                                   postparent));
+                return 0;
+        }
+
+        if (op_ret)
+                goto err;
+
+err:
+        dht2_generic_stack_unwind (frame, this, op_ret, op_errno, inode, buf,
+                                   xdata, postparent);
+bail:
+        return 0;
+}
+
+/* lookup is used to aggregate iatt from ds generically for all fops
+ * as it helps below xlators to get the correct iatt.
+ */
+int32_t
+dht2_aggregate_iatt_from_ds (call_frame_t *frame, xlator_t *this,
+                             inode_t *inode, struct iatt *buf, dict_t *xdata,
+                             struct iatt *postparent)
+{
+        int32_t          op_errno = 0;
+        int32_t          ret = 0;
+        xlator_t        *wind_subvol = NULL;
+        dht2_local_t    *local = NULL;
+        loc_t            wind_loc = {0};
+
+        GF_VALIDATE_OR_GOTO ("dht2", buf, err);
+
+        local = frame->local;
+
+        ret = dht2_prepare_for_ds_wind (frame, this, buf, &op_errno,
+                                        &wind_subvol, &wind_loc);
+        if (ret)
+                goto err;
+
+        /* wind lookup to DS subvolume */
+        STACK_WIND (frame, dht2_aggregate_iatt_from_ds_cbk,
+                    wind_subvol, wind_subvol->fops->lookup,
+                    &wind_loc, local->d2local_xattr_req);
+        loc_wipe (&wind_loc);
+
+        return 0;
+err:
+        dht2_generic_stack_unwind (frame, this,  -1,
+                                   op_errno ? op_errno : errno, inode, buf,
+                                   xdata, postparent);
+        loc_wipe (&wind_loc);
+        return 0;
+}
+
 int32_t
 dht2_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
                  int32_t op_ret, int32_t op_errno, inode_t *inode,
@@ -440,11 +551,18 @@ dht2_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
 
         /* success, unwind */
         if (!op_ret) {
-                DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno, inode,
-                                   buf, xdata,
-                                   (local->d2local_postparent_stbuf_filled ?
-                                    &local->d2local_postparent_stbuf :
-                                    postparent));
+                if (IA_ISREG (buf->ia_type)) {
+                        /* Copy mds iatt buf into local to merge it with DS iatt */
+                        dht2_iatt_copy (&local->d2local_mds_stbuf, buf);
+                        dht2_aggregate_iatt_from_ds (frame, this, inode, buf,
+                                                     xdata, postparent);
+                } else {
+                        DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno,
+                                       inode, buf, xdata,
+                                       (local->d2local_postparent_stbuf_filled ?
+                                       &local->d2local_postparent_stbuf :
+                                       postparent));
+                }
                 return 0;
         }
 
@@ -698,6 +816,202 @@ dht2_open (
         return 0;
 err:
         DHT2_STACK_UNWIND (open, frame, -1, op_errno,
+                           NULL, NULL);
+bail:
+        return 0;
+}
+
+int32_t
+dht2_stat_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
+	       int32_t op_ret, int32_t op_errno, struct iatt *buf,
+               dict_t *xdata)
+{
+        dht2_local_t    *local = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        GF_VALIDATE_OR_GOTO ("dht2", this, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+
+        local = frame->local;
+
+        /* success, unwind */
+        if (!op_ret) {
+                if (IA_ISREG (buf->ia_type)) {
+                        /* Copy mds iatt buf into local to merge it with DS iatt */
+                        dht2_iatt_copy (&local->d2local_mds_stbuf, buf);
+                        dht2_aggregate_iatt_from_ds (frame, this, NULL, buf,
+                                                     xdata, NULL);
+                } else {
+                        DHT2_STACK_UNWIND (stat, frame, op_ret, op_errno,
+                                           buf, xdata);
+                }
+                return 0;
+        }
+
+        /* TODO: Rebalance EREMOTE or equivalent errors need to be handled */
+err:
+        DHT2_STACK_UNWIND (stat, frame, op_ret, op_errno,
+                           buf, xdata);
+bail:
+        return 0;
+}
+
+
+int32_t
+dht2_stat (
+	call_frame_t *frame, xlator_t *this,
+	loc_t * loc,
+	dict_t * xdata)
+{
+        dht2_conf_t     *conf = NULL;
+        dht2_local_t    *local = NULL;
+        int32_t          op_errno = 0;
+        xlator_t        *wind_subvol = NULL;
+
+        VALIDATE_OR_GOTO (frame, bail);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (loc, err);
+        VALIDATE_OR_GOTO (loc->inode, err);
+
+        conf = this->private;
+        if (!conf)
+                goto err;
+
+        local = dht2_local_init (frame, conf, loc, NULL, GF_FOP_STAT);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        if (gf_uuid_is_null (loc->inode->gfid)) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_MISSING_GFID_IN_INODE,
+                        "Missing GFID for inode %p",
+                        loc->inode);
+        }
+
+        /* stash a reference to the request xattrs */
+        if (xdata) {
+                local->d2local_xattr_req = dict_ref (xdata);
+        }
+
+        /* determine subvolume to wind stat to */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, loc->inode->gfid,
+                                                 DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        uuid_utoa (loc->inode->gfid));
+                goto err;
+        }
+
+        /* wind stat to subvolume */
+        STACK_WIND (frame, dht2_stat_cbk,
+                    wind_subvol, wind_subvol->fops->stat,
+                    loc, xdata);
+
+        return 0;
+err:
+        DHT2_STACK_UNWIND (stat, frame, -1, op_errno,
+                           NULL, NULL);
+bail:
+        return 0;
+}
+
+int32_t
+dht2_fstat_cbk (
+        call_frame_t *frame, void *cookie, xlator_t *this,
+        int32_t op_ret, int32_t op_errno,
+        struct iatt *buf,
+	dict_t *xdata)
+{
+        dht2_local_t    *local = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        GF_VALIDATE_OR_GOTO ("dht2", this, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+
+        local = frame->local;
+
+        /* success, unwind */
+        if (!op_ret) {
+                if (IA_ISREG (buf->ia_type)) {
+                        /* Copy mds iatt buf into local to merge it with DS iatt */
+                        dht2_iatt_copy (&local->d2local_mds_stbuf, buf);
+                        dht2_aggregate_iatt_from_ds (frame, this, NULL, buf,
+                                                     xdata, NULL);
+                } else {
+                        DHT2_STACK_UNWIND (fstat, frame, op_ret, op_errno,
+                                           buf, xdata);
+                }
+                return 0;
+        }
+
+        /* TODO: Rebalance EREMOTE or equivalent errors need to be handled */
+err:
+        DHT2_STACK_UNWIND (fstat, frame, op_ret, op_errno,
+                           buf, xdata);
+bail:
+        return 0;
+}
+
+int32_t
+dht2_fstat (
+        call_frame_t *frame, xlator_t *this,
+        fd_t *fd,
+	dict_t *xdata)
+{
+        dht2_conf_t     *conf = NULL;
+        dht2_local_t    *local = NULL;
+        int32_t          op_errno = 0;
+        xlator_t        *wind_subvol = NULL;
+
+        VALIDATE_OR_GOTO (frame, bail);
+        VALIDATE_OR_GOTO (this, err);
+        VALIDATE_OR_GOTO (fd, err);
+        VALIDATE_OR_GOTO (fd->inode, err);
+
+        conf = this->private;
+        if (!conf)
+                goto err;
+
+        local = dht2_local_init (frame, conf, NULL, fd, GF_FOP_FSTAT);
+        if (!local) {
+                op_errno = ENOMEM;
+                goto err;
+        }
+
+        if (gf_uuid_is_null (fd->inode->gfid)) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_MISSING_GFID_IN_INODE,
+                        "Missing GFID for inode %p",
+                        fd->inode);
+        }
+
+        /* determine subvolume to wind fstat to */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, fd->inode->gfid,
+                                                 DHT2_MDS_LAYOUT);
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find subvolume for GFID %s",
+                        uuid_utoa (fd->inode->gfid));
+                goto err;
+        }
+
+        /* wind fstat to subvolume */
+        STACK_WIND (frame, dht2_fstat_cbk, wind_subvol,
+                    wind_subvol->fops->fstat,
+                    fd, xdata);
+
+        return 0;
+err:
+        DHT2_STACK_UNWIND (fstat, frame, -1, op_errno,
                            NULL, NULL);
 bail:
         return 0;

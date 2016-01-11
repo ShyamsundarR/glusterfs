@@ -50,6 +50,12 @@ int32_t dht2_prepare_inode_loc (loc_t *, loc_t *, uuid_t);
         } while (0)
 
 int dht2_iatt_merge (struct iatt *, struct iatt *);
+int dht2_iatt_copy_mds (struct iatt *, struct iatt *);
+int dht2_iatt_copy (struct iatt *, struct iatt *);
+int
+dht2_prepare_for_ds_wind (call_frame_t *frame, xlator_t *this, struct iatt *buf,
+                          int *op_errno, xlator_t **wind_subvol, loc_t *wind_loc);
+
 
 uint32_t gfid_to_bucket (uuid_t);
 

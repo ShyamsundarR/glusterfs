@@ -56,6 +56,8 @@ struct dht2_local {
         struct iatt          d2local_postparent_stbuf;
 
         struct iatt          d2local_stbuf;         /* stat buf of the entry */
+        struct iatt          d2local_mds_stbuf;    /* stat from mds for files */
+        fd_t                *d2local_fd;    /* stat from mds for files */
 };
 typedef struct dht2_local dht2_local_t;
 

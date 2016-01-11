@@ -17,6 +17,8 @@
 #include "logging.h"
 #include "statedump.h"
 #include "dht2-helpers.h"
+#include "dht2-messages.h"
+#include "dht2-layout.h"
 
 dht2_local_t *
 dht2_local_init (call_frame_t *frame, dht2_conf_t *conf, loc_t *loc, fd_t *fd,
@@ -34,6 +36,9 @@ dht2_local_init (call_frame_t *frame, dht2_conf_t *conf, loc_t *loc, fd_t *fd,
                 if (ret)
                         goto free_local;
         }
+
+        if (fd)
+                local->d2local_fd = fd_ref (fd);
 
         local->d2local_fop = fop;
 
@@ -56,6 +61,9 @@ dht2_local_wipe (xlator_t *this, dht2_local_t *local)
 
         if (local->d2local_xattr_req)
                 dict_unref (local->d2local_xattr_req);
+
+        if (local->d2local_fd)
+                fd_unref (local->d2local_fd);
 
         mem_put (local);
 }
@@ -90,6 +98,131 @@ dht2_iatt_merge (struct iatt *to, struct iatt *from)
                              from->ia_ctime, from->ia_ctime_nsec);
 
         return 0;
+}
+
+int
+dht2_iatt_copy (struct iatt *to, struct iatt *from)
+{
+        if (!from || !to)
+                return 0;
+
+        to->ia_dev      = from->ia_dev;
+
+        gf_uuid_copy (to->ia_gfid, from->ia_gfid);
+
+        to->ia_ino        = from->ia_ino;
+        to->ia_prot       = from->ia_prot;
+        to->ia_type       = from->ia_type;
+        to->ia_nlink      = from->ia_nlink;
+        to->ia_rdev       = from->ia_rdev;
+        to->ia_size       = from->ia_size;
+        to->ia_blksize    = from->ia_blksize;
+        to->ia_blocks     = from->ia_blocks;
+
+        to->ia_uid        = from->ia_uid;
+        to->ia_gid        = from->ia_gid;
+        to->ia_atime      = from->ia_atime;
+        to->ia_atime_nsec = from->ia_atime_nsec;
+        to->ia_mtime      = from->ia_mtime;
+        to->ia_mtime_nsec = from->ia_mtime_nsec;
+        to->ia_ctime      = from->ia_ctime;
+        to->ia_ctime_nsec = from->ia_ctime_nsec;
+
+        return 0;
+}
+
+int
+dht2_iatt_copy_mds (struct iatt *to, struct iatt *from)
+{
+        if (!from || !to)
+                return 0;
+
+        to->ia_dev      = from->ia_dev;
+
+        gf_uuid_copy (to->ia_gfid, from->ia_gfid);
+
+        to->ia_ino        = from->ia_ino;
+        to->ia_prot       = from->ia_prot;
+        to->ia_type       = from->ia_type;
+        to->ia_nlink      = from->ia_nlink;
+        to->ia_rdev       = from->ia_rdev;
+        to->ia_blksize    = from->ia_blksize;
+        /*
+         * to->ia_size       = from->ia_size;
+         * to->ia_blocks     = from->ia_blocks;
+         */
+
+        to->ia_uid        = from->ia_uid;
+        to->ia_gid        = from->ia_gid;
+        /*
+         to->ia_atime      = from->ia_atime;
+         to->ia_atime_nsec = from->ia_atime_nsec;
+         to->ia_mtime      = from->ia_mtime;
+         to->ia_mtime_nsec = from->ia_mtime_nsec;
+         */
+        to->ia_ctime      = from->ia_ctime;
+        to->ia_ctime_nsec = from->ia_ctime_nsec;
+
+        return 0;
+}
+
+int
+dht2_prepare_for_ds_wind (call_frame_t *frame, xlator_t *this, struct iatt *buf,
+                          int *op_errno, xlator_t **wind_subvol, loc_t *wind_loc)
+{
+        int             ret     = 0;
+        dht2_conf_t    *conf    = NULL;
+        dht2_local_t   *local   = NULL;
+        fd_t           *fd      = NULL;
+
+        conf = this->private;
+        local = frame->local;
+        fd = local->d2local_fd;
+
+        /* ASSUMPTION: The gfid on a succesful find of the name is returned
+         * as a part of the iatt buffer */
+        if (gf_uuid_is_null (buf->ia_gfid)) {
+                /* no GFID returned, error out */
+                *op_errno = EIO;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, *op_errno,
+                        DHT2_MSG_INODE_NUMBER_MISSING,
+                        "Missing GFID for name entry: OP:%d", frame->op);
+                ret = -1;
+                goto err;
+        }
+
+        /* determine DS subvolume to wind lookup to */
+        *wind_subvol = dht2_find_subvol_for_gfid (conf, buf->ia_gfid,
+                                                 DHT2_DS_LAYOUT);
+        if (!*wind_subvol) {
+                *op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, *op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find DS subvolume for GFID %s OP:%d",
+                        uuid_utoa (buf->ia_gfid), frame->op);
+                ret = -1;
+                goto err;
+        }
+
+        /* If it's named lookup (pgfid/bname), then gfid is NULL
+         * in loc, hence specifically copy gfid to d2local_loc.
+         * That should be fine.
+         */
+        gf_uuid_copy (local->d2local_loc.gfid, buf->ia_gfid);
+
+        /* generate a GFID based nameless loc for further layers */
+        if (dht2_generate_nameless_loc (wind_loc, &local->d2local_loc)) {
+                ret = -1;
+                goto err;
+        }
+
+        /* Copy inode for fd based operations else client3_3_lookup fails
+           the lookup with ESTALE */
+        if (fd)
+                wind_loc->inode = inode_ref (fd->inode);
+
+err:
+        return ret;
 }
 
 /* function extracts the TOP 2 bytes of the given UUID to return a bucket
