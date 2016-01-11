@@ -50,6 +50,8 @@ int32_t dht2_prepare_inode_loc (loc_t *, loc_t *, uuid_t);
         } while (0)
 
 int dht2_iatt_merge (struct iatt *, struct iatt *);
+int dht2_iatt_copy_mds (struct iatt *, struct iatt *);
+int dht2_iatt_copy (struct iatt *, struct iatt *);
 
 uint32_t gfid_to_bucket (uuid_t);
 

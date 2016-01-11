@@ -99,6 +99,72 @@ dht2_iatt_merge (struct iatt *to, struct iatt *from)
         return 0;
 }
 
+int
+dht2_iatt_copy (struct iatt *to, struct iatt *from)
+{
+        if (!from || !to)
+                return 0;
+
+        to->ia_dev      = from->ia_dev;
+
+        gf_uuid_copy (to->ia_gfid, from->ia_gfid);
+
+        to->ia_ino        = from->ia_ino;
+        to->ia_prot       = from->ia_prot;
+        to->ia_type       = from->ia_type;
+        to->ia_nlink      = from->ia_nlink;
+        to->ia_rdev       = from->ia_rdev;
+        to->ia_size       = from->ia_size;
+        to->ia_blksize    = from->ia_blksize;
+        to->ia_blocks     = from->ia_blocks;
+
+        to->ia_uid        = from->ia_uid;
+        to->ia_gid        = from->ia_gid;
+        to->ia_atime      = from->ia_atime;
+        to->ia_atime_nsec = from->ia_atime_nsec;
+        to->ia_mtime      = from->ia_mtime;
+        to->ia_mtime_nsec = from->ia_mtime_nsec;
+        to->ia_ctime      = from->ia_ctime;
+        to->ia_ctime_nsec = from->ia_ctime_nsec;
+
+        return 0;
+}
+
+int
+dht2_iatt_copy_mds (struct iatt *to, struct iatt *from)
+{
+        if (!from || !to)
+                return 0;
+
+        to->ia_dev      = from->ia_dev;
+
+        gf_uuid_copy (to->ia_gfid, from->ia_gfid);
+
+        to->ia_ino        = from->ia_ino;
+        to->ia_prot       = from->ia_prot;
+        to->ia_type       = from->ia_type;
+        to->ia_nlink      = from->ia_nlink;
+        to->ia_rdev       = from->ia_rdev;
+        to->ia_blksize    = from->ia_blksize;
+        /*
+         * to->ia_size       = from->ia_size;
+         * to->ia_blocks     = from->ia_blocks;
+         */
+
+        to->ia_uid        = from->ia_uid;
+        to->ia_gid        = from->ia_gid;
+        /*
+         to->ia_atime      = from->ia_atime;
+         to->ia_atime_nsec = from->ia_atime_nsec;
+         to->ia_mtime      = from->ia_mtime;
+         to->ia_mtime_nsec = from->ia_mtime_nsec;
+         */
+        to->ia_ctime      = from->ia_ctime;
+        to->ia_ctime_nsec = from->ia_ctime_nsec;
+
+        return 0;
+}
+
 /* function extracts the TOP 2 bytes of the given UUID to return a bucket
  * number for use */
 uint32_t

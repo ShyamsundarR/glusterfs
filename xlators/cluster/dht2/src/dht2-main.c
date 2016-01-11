@@ -424,6 +424,106 @@ err:
 }
 
 int32_t
+dht2_lookup_ds_inode_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
+                          int32_t op_ret, int32_t op_errno, inode_t *inode,
+                          struct iatt *buf, dict_t *xdata,
+                          struct iatt *postparent)
+{
+        dht2_local_t    *local = NULL;
+
+        GF_VALIDATE_OR_GOTO ("dht2", frame, bail);
+        GF_VALIDATE_OR_GOTO ("dht2", this, err);
+        GF_VALIDATE_OR_GOTO ("dht2", frame->local, err);
+        GF_VALIDATE_OR_GOTO ("dht2", cookie, err);
+
+        local = frame->local;
+
+        if (!op_ret) {
+                /* Aggregate iatt from DS with DS */
+                dht2_iatt_copy_mds(buf, &local->d2local_mds_stbuf);
+                DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno,
+                                   inode, buf, xdata,
+                                   (local->d2local_postparent_stbuf_filled ?
+                                   &local->d2local_postparent_stbuf :
+                                   postparent));
+                return 0;
+        }
+
+        if (op_ret)
+                goto err;
+
+err:
+        DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno, inode, buf,
+                           xdata, postparent);
+bail:
+        return 0;
+}
+
+int
+dht2_lookup_ds_inode (call_frame_t *frame, xlator_t *this, inode_t *inode,
+                          struct iatt *buf, dict_t *xdata,
+                          struct iatt *postparent)
+{
+        int32_t          op_errno = 0;
+        xlator_t        *wind_subvol = NULL;
+        dht2_conf_t     *conf = NULL;
+        dht2_local_t    *local = NULL;
+        loc_t            wind_loc = {0};
+
+        GF_VALIDATE_OR_GOTO ("dht2", buf, err);
+
+        conf = this->private;
+        local = frame->local;
+
+        /* ASSUMPTION: The gfid on a succesful find of the name is returned
+         * as a part of the iatt buffer */
+        if (gf_uuid_is_null (buf->ia_gfid)) {
+                /* no GFID returned, error out */
+                op_errno = EIO;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_INODE_NUMBER_MISSING,
+                        "Missing GFID for name entry");
+                goto err;
+        }
+
+        /* determine DS subvolume to wind lookup to */
+        wind_subvol = dht2_find_subvol_for_gfid (conf, buf->ia_gfid,
+                                                 DHT2_DS_LAYOUT);
+        if (!wind_subvol) {
+                op_errno = EINVAL;
+                gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
+                        DHT2_MSG_FIND_SUBVOL_ERROR,
+                        "Unable to find DS subvolume for GFID %s",
+                        uuid_utoa (buf->ia_gfid));
+                goto err;
+        }
+
+        /* If it's named lookup (pgfid/bname), then gfid is NULL
+         * in loc, hence specifically copy gfid to d2local_loc.
+         * That should be fine.
+         */
+        gf_uuid_copy (local->d2local_loc.gfid, buf->ia_gfid);
+
+        /* generate a GFID based nameless loc for further layers */
+        if (dht2_generate_nameless_loc (&wind_loc, &local->d2local_loc)) {
+                goto err;
+        }
+
+        /* wind lookup to subvolume */
+        STACK_WIND (frame, dht2_lookup_ds_inode_cbk,
+                    wind_subvol, wind_subvol->fops->lookup,
+                    &wind_loc, local->d2local_xattr_req);
+        loc_wipe (&wind_loc);
+
+        return 0;
+err:
+        DHT2_STACK_UNWIND (lookup, frame, -1, op_errno ? op_errno : errno,
+                           inode, buf, xdata, postparent);
+        loc_wipe (&wind_loc);
+        return 0;
+}
+
+int32_t
 dht2_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
                  int32_t op_ret, int32_t op_errno, inode_t *inode,
                  struct iatt *buf, dict_t *xdata,
@@ -440,11 +540,18 @@ dht2_lookup_cbk (call_frame_t *frame, void *cookie, xlator_t *this,
 
         /* success, unwind */
         if (!op_ret) {
-                DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno, inode,
-                                   buf, xdata,
-                                   (local->d2local_postparent_stbuf_filled ?
-                                    &local->d2local_postparent_stbuf :
-                                    postparent));
+                if (IA_ISREG (buf->ia_type)) {
+                        /* Copy mds iatt buf into local to merge it with DS iatt */
+                        dht2_iatt_copy (&local->d2local_mds_stbuf, buf);
+                        dht2_lookup_ds_inode (frame, this, inode, buf, xdata,
+                                              postparent);
+                } else {
+                        DHT2_STACK_UNWIND (lookup, frame, op_ret, op_errno,
+                                       inode, buf, xdata,
+                                       (local->d2local_postparent_stbuf_filled ?
+                                       &local->d2local_postparent_stbuf :
+                                       postparent));
+                }
                 return 0;
         }
 
