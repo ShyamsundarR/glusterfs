@@ -46,6 +46,10 @@
 
 #define POSIX2_ZFXATTR_MSG_EXPORT_VOLID_FAILURE    (POSIX2_COMP_BASE + 8)
 
-#define POSIX2_MSG_INODE_NULL_GFID                 (POSIX2_COMP_BASE + 11)
+#define POSIX2_MSG_INODE_NULL_GFID                 (POSIX2_COMP_BASE + 9)
+
+#define POSIX2_MSG_PFD_NULL                        (POSIX2_COMP_BASE + 10)
+
+#define POSIX2_MSG_FSTAT_FAILED                    (POSIX2_COMP_BASE + 11)
 
 #endif  /* __POSIX2_MESSAGES_H__ */
