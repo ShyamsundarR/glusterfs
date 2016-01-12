@@ -603,6 +603,104 @@ out:
 }
 
 int32_t
+posix2_readv (call_frame_t *frame, xlator_t *this,
+             fd_t *fd, size_t size, off_t offset, uint32_t flags, dict_t *xdata)
+{
+        int32_t                op_ret     = -1;
+        int32_t                op_errno   = 0;
+        int                    _fd        = -1;
+        struct iobuf          *iobuf      = NULL;
+        struct iobref         *iobref     = NULL;
+        struct iovec           vec        = {0,};
+        struct posix2_fd *     pfd        = NULL;
+        struct iatt            stbuf      = {0,};
+        int                    ret        = -1;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (fd->inode, out);
+
+        ret = posix2_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                op_errno = -ret;
+                gf_msg (this->name, GF_LOG_WARNING, op_errno,
+                        POSIX2_DS_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                goto out;
+        }
+
+        if (!size) {
+                op_errno = EINVAL;
+                gf_msg (this->name, GF_LOG_WARNING, EINVAL,
+                        POSIX2_DS_MSG_INVALID_ARGUMENT,
+                        "size=%"GF_PRI_SIZET, size);
+                goto out;
+        }
+
+        iobuf = iobuf_get2 (this->ctx->iobuf_pool, size);
+        if (!iobuf) {
+                op_errno = ENOMEM;
+                goto out;
+        }
+
+        _fd = pfd->fd;
+        op_ret = pread (_fd, iobuf->ptr, size, offset);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        POSIX2_DS_MSG_READ_FAILED,
+                        "read failed on fd=%p", fd);
+                goto out;
+        }
+
+        /*
+        LOCK (&priv->lock);
+        {
+                priv->read_value    += op_ret;
+        }
+        UNLOCK (&priv->lock);
+        */
+
+        vec.iov_base = iobuf->ptr;
+        vec.iov_len  = op_ret;
+
+        iobref = iobref_new ();
+        iobref_add (iobref, iobuf);
+
+        /*
+         *  readv successful, and we need to get the stat of the file
+         *  we read from
+         */
+
+        op_ret = posix2_fdstat (this, _fd, fd->inode->gfid, &stbuf);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno,
+                        POSIX2_DS_MSG_FSTAT_FAILED,
+                        "fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        /* Retained from older posix.  Hack to notify higher layers of EOF. */
+        if (!stbuf.ia_size || (offset + vec.iov_len) >= stbuf.ia_size)
+                op_errno = ENOENT;
+
+        op_ret = vec.iov_len;
+out:
+
+        STACK_UNWIND_STRICT (readv, frame, op_ret, op_errno,
+                             &vec, 1, &stbuf, iobref, NULL);
+
+        if (iobref)
+                iobref_unref (iobref);
+        if (iobuf)
+                iobuf_unref (iobuf);
+
+        return 0;
+}
+
+int32_t
 posix2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 {
         int32_t ret = 0;
@@ -847,6 +945,8 @@ struct xlator_fops fops = {
         .open   = posix2_open,
 
         .writev      = posix2_writev,
+        .readv       = posix2_readv,
+
         .stat        = posix2_stat,
         .statfs      = posix2_statfs,
         .flush       = posix2_flush,
