@@ -130,4 +130,5 @@ struct xlator_fops zfstore_fops = {
         .flush    = zfstore_flush,
         .setattr  = zfstore_setattr,
         .stat     = zfstore_stat,
+        .fstat    = zfstore_fstat,
 };
