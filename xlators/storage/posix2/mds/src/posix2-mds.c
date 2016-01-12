@@ -243,6 +243,19 @@ posix2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 }
 
 int32_t
+posix2_fstat (call_frame_t *frame, xlator_t *this, fd_t *fd, dict_t *xdata)
+{
+        struct posix2_mdstore_handler *handle = NULL;
+
+        handle = posix2_get_cached_handle (this);
+        if (handle->storeops->stat)
+                return handle->storeops->fstat (frame, this, fd, xdata);
+
+        STACK_UNWIND_STRICT (fstat, frame, -1, ENOTSUP, NULL, NULL);
+        return 0;
+}
+
+int32_t
 posix2_icreate (call_frame_t *frame,
                 xlator_t *this, loc_t *loc, mode_t mode, dict_t *xdata)
 {
@@ -286,6 +299,7 @@ struct xlator_fops fops = {
         .flush    = posix2_flush,
         .setattr  = posix2_setattr,
         .stat     = posix2_stat,
+        .fstat    = posix2_fstat,
 };
 
 struct xlator_cbks cbks = {
