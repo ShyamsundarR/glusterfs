@@ -62,4 +62,9 @@
 
 #define POSIX2_DS_MSG_FSYNC_FAILED                    (POSIX2_DS_COMP_BASE + 16)
 
+#define POSIX2_DS_MSG_INVALID_ARGUMENT                (POSIX2_DS_COMP_BASE + 17)
+
+#define POSIX2_DS_MSG_READ_FAILED                     (POSIX2_DS_COMP_BASE + 18)
+
+
 #endif /* __POSIX2_DS_MESSAGES_H__ */
