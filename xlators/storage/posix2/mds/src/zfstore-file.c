@@ -163,6 +163,47 @@ zfstore_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 }
 
 int32_t
+zfstore_fstat (call_frame_t *frame, xlator_t *this, fd_t *fd, dict_t *xdata)
+{
+        int                   _fd      = -1;
+        int32_t               op_ret   = -1;
+        int32_t               op_errno = 0;
+        struct iatt           buf      = {0,};
+        struct posix2_fd     *pfd      = NULL;
+        uint64_t              pfd_ctx  = 0;
+        int                   ret      = -1;
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (fd->inode, out);
+
+        ret = fd_ctx_get (fd, this, &pfd_ctx);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, -ret, POSIX2_MSG_PFD_NULL,
+                        "pfd is NULL, fd=%p", fd);
+                op_errno = -ret;
+                goto out;
+        }
+        pfd = (struct posix2_fd *)pfd_ctx;
+        _fd = pfd->fd;
+
+        op_ret = posix2_fdstat (this, _fd, fd->inode->gfid, &buf);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, POSIX2_MSG_FSTAT_FAILED,
+                        "fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = 0;
+
+out:
+        STACK_UNWIND_STRICT (fstat, frame, op_ret, op_errno, &buf, NULL);
+        return 0;
+}
+
+int32_t
 zfstore_open (call_frame_t *frame, xlator_t *this,
               loc_t *loc, int32_t flags, fd_t *fd, dict_t *xdata)
 {
