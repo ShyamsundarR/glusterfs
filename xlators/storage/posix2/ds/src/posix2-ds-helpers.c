@@ -47,7 +47,6 @@ __posix2_fd_ctx_get (fd_t *fd, xlator_t *this, struct posix2_fd **pfd_p)
         uint64_t           tmp_pfd   = 0;
         struct posix2_fd  *pfd       = NULL;
         int                ret       = -1;
-        char              *real_path = NULL;
         int                _fd       = -1;
         char              *export    = NULL;
         struct posix2_ds  *ds        = NULL;
@@ -87,7 +86,7 @@ __posix2_fd_ctx_get (fd_t *fd, xlator_t *this, struct posix2_fd **pfd_p)
         if (!fd_is_anonymous(fd)) {
                 gf_log (this->name, GF_LOG_ERROR,
                         "Failed to get fd context for a non-anonymous fd, "
-                        "file: %s, gfid: %s", real_path,
+                        "file: %s, gfid: %s", entry,
                         uuid_utoa (fd->inode->gfid));
                 goto out;
         }
