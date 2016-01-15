@@ -66,5 +66,7 @@
 
 #define POSIX2_DS_MSG_READ_FAILED                     (POSIX2_DS_COMP_BASE + 18)
 
+#define POSIX2_DS_MSG_TRUNCATE_FAILED                 (POSIX2_DS_COMP_BASE + 19)
+
 
 #endif /* __POSIX2_DS_MESSAGES_H__ */
