@@ -694,6 +694,67 @@ out:
 }
 
 int32_t
+posix2_ftruncate (call_frame_t *frame, xlator_t *this,
+                 fd_t *fd, off_t offset, dict_t *xdata)
+{
+        int32_t           op_ret   = -1;
+        int32_t           op_errno = 0;
+        int               _fd      = -1;
+        struct posix2_fd *pfd      = NULL;
+        int               ret      = -1;
+        struct iatt       preop    = {0,};
+        struct iatt       postop   = {0,};
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (fd->inode, out);
+
+        ret = posix2_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, ret, POSIX2_DS_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                op_errno = -ret;
+                goto out;
+        }
+
+        _fd = pfd->fd;
+
+        op_ret = posix2_fdstat (this, _fd, fd->inode->gfid, &preop);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, POSIX2_DS_MSG_FSTAT_FAILED,
+                        "pre-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = ftruncate (_fd, offset);
+
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, POSIX2_DS_MSG_TRUNCATE_FAILED,
+                        "ftruncate failed on fd=%p (%"PRId64"", fd, offset);
+                goto out;
+        }
+
+        op_ret = posix2_fdstat (this, _fd, fd->inode->gfid, &postop);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, POSIX2_DS_MSG_FSTAT_FAILED,
+                        "pre-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = 0;
+
+out:
+        STACK_UNWIND_STRICT (ftruncate, frame, op_ret, op_errno, &preop,
+                             &postop, NULL);
+
+        return 0;
+}
+
+int32_t
 posix2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 {
         int32_t ret = 0;
@@ -723,6 +784,47 @@ posix2_stat (call_frame_t *frame, xlator_t *this, loc_t *loc, dict_t *xdata)
 
  unwind_err:
         STACK_UNWIND_STRICT (stat, frame, -1, errno, NULL, NULL);
+        return 0;
+}
+
+int32_t
+posix2_fstat (call_frame_t *frame, xlator_t *this,
+             fd_t *fd, dict_t *xdata)
+{
+        int32_t           op_ret   = -1;
+        int32_t           op_errno = 0;
+        int               _fd      = -1;
+        struct posix2_fd *pfd      = NULL;
+        int               ret      = -1;
+        struct iatt       stbuf    = {0,};
+
+        VALIDATE_OR_GOTO (frame, out);
+        VALIDATE_OR_GOTO (this, out);
+        VALIDATE_OR_GOTO (fd, out);
+        VALIDATE_OR_GOTO (fd->inode, out);
+
+        ret = posix2_fd_ctx_get (fd, this, &pfd);
+        if (ret < 0) {
+                gf_msg (this->name, GF_LOG_WARNING, ret, POSIX2_DS_MSG_PFD_NULL,
+                        "pfd is NULL from fd=%p", fd);
+                op_errno = -ret;
+                goto out;
+        }
+
+        _fd = pfd->fd;
+
+        op_ret = posix2_fdstat (this, _fd, fd->inode->gfid, &stbuf);
+        if (op_ret == -1) {
+                op_errno = errno;
+                gf_msg (this->name, GF_LOG_ERROR, errno, POSIX2_DS_MSG_FSTAT_FAILED,
+                        "pre-operation fstat failed on fd=%p", fd);
+                goto out;
+        }
+
+        op_ret = 0;
+
+out:
+        STACK_UNWIND_STRICT (fstat, frame, op_ret, op_errno, &stbuf, NULL);
         return 0;
 }
 
@@ -939,8 +1041,10 @@ struct xlator_fops fops = {
 
         .writev      = posix2_writev,
         .readv       = posix2_readv,
+        .ftruncate   = posix2_ftruncate,
 
         .stat        = posix2_stat,
+        .fstat       = posix2_fstat,
         .statfs      = posix2_statfs,
         .flush       = posix2_flush,
         .fsync       = posix2_fsync,
