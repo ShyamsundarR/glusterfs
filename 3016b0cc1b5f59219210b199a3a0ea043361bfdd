@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_2ab1a2f8",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 828,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T16:06:08Z",
+      "side": 1,
+      "message": "Same comment at writev\n\nBoth writev and readv should/can come from templates/autogen framework. Easier that way ;)\n\nPossibly truncate would also be from the same pattern.",
+      "revId": "3016b0cc1b5f59219210b199a3a0ea043361bfdd",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
