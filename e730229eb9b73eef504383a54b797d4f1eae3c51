@@ -1,0 +1,38 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_ea0a2ad1",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 250,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T15:41:29Z",
+      "side": 1,
+      "message": "Why resolve?",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_0a105e00",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 259,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T15:41:29Z",
+      "side": 1,
+      "message": "Such checks should not be made, as such links will not be allowed (in my head at least ;) ). So why do we have this here?",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
