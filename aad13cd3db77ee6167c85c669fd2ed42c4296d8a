@@ -1,0 +1,44 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_6ac1da7f",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 137,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T15:27:12Z",
+      "side": 1,
+      "message": "Although a fini on POSIX is end of process, I would like a clean fini, to free things in the init.",
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_ea3cea95",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 167,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T15:27:12Z",
+      "side": 1,
+      "message": "This is a forcing check to send only nameless lookup to the DS, which is fine. Just wondering, if a loc on the client gets reused and name or pargfid is passed things will fail here. Is it better to enforce? Thoughts?",
+      "range": {
+        "startLine": 167,
+        "startChar": 20,
+        "endLine": 167,
+        "endChar": 31
+      },
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
