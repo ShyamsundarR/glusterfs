@@ -1,0 +1,55 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_4aced684",
+        "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 40,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T16:04:22Z",
+      "side": 1,
+      "message": "Where is fd unref\u0027d for this ref?",
+      "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_0ab5beed",
+        "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T16:04:22Z",
+      "side": 1,
+      "message": "Nope: No here!\n\nWe need to determine subvol to WIND to and there is no need to stash it  (yet).\n\nThe FOP for writev, follows the autogetn model, except that instead of looking for wind_subvol in the MDS layout, we look for it in the DS layout. I would prefer that method till we have a need to stash things here.",
+      "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_ea314aa3",
+        "filename": "xlators/cluster/dht2/src/dht2.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T16:04:22Z",
+      "side": 1,
+      "message": "Need to discuss structure member naming.\n\nFor example, when I searched for uses of cached_subvol I got about 20 hits from DHT code and 2 hits from DHT2 code, wading through these is painful, hence if there was some way to name it uniquely, code browsing and finding uses of a structure variable becomes much easier.\n\nMaybe we can discuss this over the call.",
+      "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
