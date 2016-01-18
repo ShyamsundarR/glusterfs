@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_4a4b362b",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 647,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-18T15:33:24Z",
+      "side": 1,
+      "message": "(nit) tab creep will impact us later",
+      "revId": "8d33be50ec9817b28b80742cb8302e350b9d7152",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
