@@ -39,6 +39,47 @@
       "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_a503030e",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 167,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-19T03:42:08Z",
+      "side": 1,
+      "message": "Well, in that case, we should prioritize using -\u003egfid over (-\u003epargfid, -\u003ename). So, a named loc can still be used for nameless operations (is available), though, named operations in ds still needs to be rejected.",
+      "parentUuid": "fa81d914_ea3cea95",
+      "range": {
+        "startLine": 167,
+        "startChar": 20,
+        "endLine": 167,
+        "endChar": 31
+      },
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_8506ff1e",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-19T03:42:08Z",
+      "side": 1,
+      "message": "any need to hostname? in mds, the intention is to use hostname for pathinfo matter query.",
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
