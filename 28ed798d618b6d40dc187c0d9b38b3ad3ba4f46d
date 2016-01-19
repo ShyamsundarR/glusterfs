@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "fa81d914_f5212afd",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 514,
+      "author": {
+        "id": 1004060
+      },
+      "writtenOn": "2016-01-19T16:36:47Z",
+      "side": 1,
+      "message": "Here is a short debate on why this should be lookup (and not stat or other families) and why we need a generic routine here.\n\nWe need to return pre or post op iatt/stat values for the following FOPs,\n(we care in the POC) lookup, (f)stat, (f)truncate, (f)setattr, readv, writev, fsync\n(we do not care yet in the POC) fallocate, discard, zerofill\n\nCase for lookup:\n- So if we use lookup, we can get the 0 size for objects yet to be created or written to etc.\n- lookup would also mean this object is looked up below the DHT2 stack, and other xlators have enough information to act accordingly\n- stat or others would not necessarily satisfy the above requirement\n\nOnto the generic interface:\n- As we need to call this in multiple places, we should be able to unwind to different FOPs, the current implementation unwinds to a lookup FOP only, so if we can write this in a more generic form that the FOPs above can call, then we can reuse that part and just make the required modification for those FOPs to call this on success etc.",
+      "range": {
+        "startLine": 514,
+        "startChar": 52,
+        "endLine": 514,
+        "endChar": 53
+      },
+      "revId": "28ed798d618b6d40dc187c0d9b38b3ad3ba4f46d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
