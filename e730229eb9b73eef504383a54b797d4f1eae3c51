@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "fa81d914_5b614738",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 250,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-20T05:16:14Z",
+      "side": 1,
+      "message": "It\u0027s unneeded. calling open() directly would suffice here.",
+      "parentUuid": "fa81d914_ea0a2ad1",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa81d914_0a105e00",
         "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
         "patchSetId": 2
@@ -30,6 +48,58 @@
       "writtenOn": "2016-01-18T15:41:29Z",
       "side": 1,
       "message": "Such checks should not be made, as such links will not be allowed (in my head at least ;) ). So why do we have this here?",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_1b78aff1",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 259,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-20T05:16:14Z",
+      "side": 1,
+      "message": "Correct. An inode on the data node *should* be a regular file and nothing else.",
+      "parentUuid": "fa81d914_0a105e00",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_7b644b49",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 293,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-20T05:16:14Z",
+      "side": 1,
+      "message": "Shyam introduced a helper routine in posix2-common (as part of readdir() support) that takes care of this cleanly.",
+      "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_3b73b316",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 311,
+      "author": {
+        "id": 1005325
+      },
+      "writtenOn": "2016-01-20T05:16:14Z",
+      "side": 1,
+      "message": "It\u0027s this kind of indentation creep that makes code difficult to read. Using multi labels with appropriate gotos makes it easier to follow.",
       "revId": "e730229eb9b73eef504383a54b797d4f1eae3c51",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
