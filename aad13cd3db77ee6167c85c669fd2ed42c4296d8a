@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "fa81d914_275630d3",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 137,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-21T10:08:27Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fa81d914_6ac1da7f",
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa81d914_ea3cea95",
         "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
         "patchSetId": 4
@@ -66,6 +84,30 @@
     },
     {
       "key": {
+        "uuid": "fa81d914_00f4bdf0",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.c",
+        "patchSetId": 4
+      },
+      "lineNbr": 167,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-21T10:08:27Z",
+      "side": 1,
+      "message": "Well observed! Agreed, we should let the loc to be used if gfid is filled. Done",
+      "parentUuid": "fa81d914_a503030e",
+      "range": {
+        "startLine": 167,
+        "startChar": 20,
+        "endLine": 167,
+        "endChar": 31
+      },
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa81d914_8506ff1e",
         "filename": "xlators/storage/posix2/ds/src/posix2-ds.h",
         "patchSetId": 4
@@ -77,6 +119,24 @@
       "writtenOn": "2016-01-19T03:42:08Z",
       "side": 1,
       "message": "any need to hostname? in mds, the intention is to use hostname for pathinfo matter query.",
+      "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_794e1071",
+        "filename": "xlators/storage/posix2/ds/src/posix2-ds.h",
+        "patchSetId": 4
+      },
+      "lineNbr": 21,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-21T10:08:27Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "fa81d914_8506ff1e",
       "revId": "aad13cd3db77ee6167c85c669fd2ed42c4296d8a",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
