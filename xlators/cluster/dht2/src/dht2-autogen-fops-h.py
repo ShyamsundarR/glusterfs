@@ -2,7 +2,7 @@
 
 import sys
 from generator import ops, fop_subs, cbk_subs, generate
-from dht2autogenfopslist import inode_ops, fd_ops, unsup_ops
+from dht2autogenfopslist import inode_ops, fd_ops_mds,fd_ops_ds, unsup_ops
 
 OP_CBK_TEMPLATE = """
 int32_t
@@ -23,9 +23,12 @@ def gen_defaults ():
 	for name in inode_ops:
 		print generate(OP_CBK_TEMPLATE,name,cbk_subs)
                 print generate(OP_FOP_TEMPLATE,name,fop_subs)
-        for name in fd_ops:
+        for name in fd_ops_mds:
                 print generate(OP_CBK_TEMPLATE,name,cbk_subs)
                 print generate(OP_FOP_TEMPLATE,name,fop_subs)
+        for name in fd_ops_ds:
+                print generate(OP_CBK_TEMPLATE,name,cbk_subs,layout="DS")
+                print generate(OP_FOP_TEMPLATE,name,fop_subs,layout="DS")
         for name in unsup_ops:
                 print generate(OP_FOP_TEMPLATE,name,fop_subs)
 

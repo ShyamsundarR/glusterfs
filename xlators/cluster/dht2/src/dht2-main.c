@@ -840,8 +840,8 @@ struct xlator_fops fops = {
 /*        .link; */
         .create         = dht2_create,
         .open           = dht2_open,
-/*        .readv, */
-/*        .writev, */
+        .readv          = dht2_readv,
+        .writev         = dht2_writev,
         .flush          = dht2_flush,
 /*        .fsync, */
 /*        .opendir, */

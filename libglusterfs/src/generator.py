@@ -467,8 +467,14 @@ def get_subs (names, types, cbktypes):
         sdict["@CBK_ERROR_ARGS@"] = string.join(map(get_error_arg,cbktypes),", ")
 	return sdict
 
-def generate (tmpl, name, subs):
+def generate (tmpl, name, subs, layout=None):
 	text = tmpl.replace("@NAME@",name)
+
+        if layout == "DS":
+            text = text.replace("@LAYOUT@", "DHT2_DS_LAYOUT")
+        else:
+            text = text.replace("@LAYOUT@", "DHT2_MDS_LAYOUT")
+
         try:
 	       for old, new in subs[name].iteritems():
 	               text = text.replace(old,new)

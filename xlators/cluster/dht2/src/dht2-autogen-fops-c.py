@@ -2,7 +2,7 @@
 
 import sys
 from generator import ops, fop_subs, cbk_subs, generate
-from dht2autogenfopslist import inode_ops, fd_ops, unsup_ops
+from dht2autogenfopslist import inode_ops, fd_ops_mds, fd_ops_ds, unsup_ops
 
 INODE_OP_CBK_TEMPLATE = """
 int32_t
@@ -143,7 +143,7 @@ dht2_@NAME@ (
 
         /* determine subvolume to wind @NAME@ to */
         wind_subvol = dht2_find_subvol_for_gfid (conf, fd->inode->gfid,
-                                                 DHT2_MDS_LAYOUT);
+                                                 @LAYOUT@);
         if (!wind_subvol) {
                 op_errno = EINVAL;
                 gf_msg (DHT2_MSG_DOM, GF_LOG_ERROR, op_errno,
@@ -183,9 +183,12 @@ def gen_defaults ():
 	for name in inode_ops:
 		print generate(INODE_OP_CBK_TEMPLATE,name,cbk_subs)
                 print generate(INODE_OP_FOP_TEMPLATE,name,fop_subs)
-        for name in fd_ops:
+        for name in fd_ops_mds:
                 print generate(FD_OP_CBK_TEMPLATE,name,cbk_subs)
                 print generate(FD_OP_FOP_TEMPLATE,name,fop_subs)
+        for name in fd_ops_ds:
+                print generate(FD_OP_CBK_TEMPLATE,name,cbk_subs,layout="DS")
+                print generate(FD_OP_FOP_TEMPLATE,name,fop_subs,layout="DS")
         for name in unsup_ops:
                 print generate(UNSUP_OP_FOP_TEMPLATE,name,fop_subs)
 
