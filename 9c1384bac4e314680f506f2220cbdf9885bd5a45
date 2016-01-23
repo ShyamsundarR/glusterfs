@@ -19,6 +19,24 @@
     },
     {
       "key": {
+        "uuid": "fa81d914_e7ddf871",
+        "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 40,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-23T11:31:18Z",
+      "side": 1,
+      "message": "Oh, I had in loc_wipe. Somehow missed it. Will do it!",
+      "parentUuid": "fa81d914_4aced684",
+      "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "fa81d914_0ab5beed",
         "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
         "patchSetId": 2
@@ -30,6 +48,24 @@
       "writtenOn": "2016-01-18T16:04:22Z",
       "side": 1,
       "message": "Nope: No here!\n\nWe need to determine subvol to WIND to and there is no need to stash it  (yet).\n\nThe FOP for writev, follows the autogetn model, except that instead of looking for wind_subvol in the MDS layout, we look for it in the DS layout. I would prefer that method till we have a need to stash things here.",
+      "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_07d92c83",
+        "filename": "xlators/cluster/dht2/src/dht2-helpers.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 42,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-23T11:31:18Z",
+      "side": 1,
+      "message": "Yes, no need here. I will remove it next patch set.\nOk. That make sense.",
+      "parentUuid": "fa81d914_0ab5beed",
       "revId": "9c1384bac4e314680f506f2220cbdf9885bd5a45",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
