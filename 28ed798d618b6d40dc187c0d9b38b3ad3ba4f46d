@@ -22,6 +22,30 @@
       "revId": "28ed798d618b6d40dc187c0d9b38b3ad3ba4f46d",
       "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "fa81d914_47e32433",
+        "filename": "xlators/cluster/dht2/src/dht2-main.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 514,
+      "author": {
+        "id": 1006100
+      },
+      "writtenOn": "2016-01-23T12:02:09Z",
+      "side": 1,
+      "message": "Good point. I had not thought of it. Using lookup fits in well.\nYes, I thought of doing a generic method. I was in hurry to get it worked :) Will do it in next patch set along with stat, fstat.",
+      "parentUuid": "fa81d914_f5212afd",
+      "range": {
+        "startLine": 514,
+        "startChar": 52,
+        "endLine": 514,
+        "endChar": 53
+      },
+      "revId": "28ed798d618b6d40dc187c0d9b38b3ad3ba4f46d",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
     }
   ]
 }
